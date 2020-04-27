@@ -1,0 +1,349 @@
+---
+title: "Boosting Spam"
+author: "Shan Chen"
+date: "4/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(class)
+library(glmnet)
+library(class)
+library(gbm)
+```
+
+# Old Tasks with other models:
+# Data
+```{r}
+dataDir <- "/Users/shawnchen/Desktop/rzhw"
+dataFile <- "SpamData.csv"
+spam.df <- read.csv(file.path(dataDir,dataFile))
+head(spam.df)
+```
+
+
+
+
+# Penalized Regression
+Start with  penalized regression
+
+Build the data
+```{r}
+names(spam.df)
+with(spam.df,table(IsSpam))
+numPreds <- ncol(spam.df)-1
+spam.x <- data.matrix(spam.df[,1:numPreds])
+spam.y <- data.matrix(spam.df[,-(1:numPreds)])
+```
+
+
+```{r}
+lambda.grid <- 10^seq(-5,1,length=50)
+ridge.cv <- cv.glmnet(spam.x,spam.y,
+                      lambda=lambda.grid,
+                      family="binomial",
+                      type.measure="class",
+                      alpha=0)
+```
+
+```{r}
+plot(ridge.cv)
+```
+
+```{r}
+lambda.opt <- ridge.cv$lambda.1se
+id <- with(ridge.cv,which(lambda==lambda.opt))
+(err.ridge <- with(ridge.cv,cvm[id]))
+```
+
+Repeat with Lasso
+```{r}
+lasso.cv <- cv.glmnet(spam.x,spam.y,
+                      lambda=lambda.grid,
+                      family="binomial",
+                      type.measure="class",
+                      alpha=1)
+plot(lasso.cv)
+lambda.opt <- lasso.cv$lambda.1se
+id <- with(lasso.cv,which(lambda==lambda.opt))
+(err.lasso <- with(lasso.cv,cvm[id]))
+
+```
+
+While  we are hear, see how many coefficients are nonzero? Remember there are 58 predictors
+```{r}
+lasso.cv$nzero[id]
+```
+Wow,  Lasso has only zero-ed out 6 or so coefficients.
+
+
+```{r}
+dim(spam.x)
+lasso.opt <- glmnet(spam.x,spam.y,
+                    lambda=lambda.opt,
+                    family="binomial",
+                    alpha=1)
+coefs <- coefficients(lasso.opt)
+lassoPreds <- which(coefs != 0)
+(lassoPreds <- lassoPreds[-1]-1)
+
+```
+What the heck, let's build a logistic regression model
+
+```{r}
+spam.red.df <- spam.df[,c(lassoPreds,ncol(spam.df))]
+## Build a train/test
+N <- nrow(spam.red.df)
+train <- sample(1:N,N/2,rep=F)
+train.df <- spam.red.df[train,]
+test.df <- spam.red.df[-train,]
+mod.log <- glm(IsSpam ~ ., data=train.df,
+               family="binomial")
+preds <- predict(mod.log,newdata=test.df,type="response") > 0.5
+with(test.df,table(IsSpam,preds))
+with(test.df,mean((IsSpam==1) != preds))
+```
+```{r}
+numFolds <- 10
+N <- nrow(spam.df)
+folds <- sample(1:numFolds,N,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.df <- spam.red.df[folds != fold,] 
+  test.df <- spam.red.df[folds == fold,] 
+  mod.log <- glm(IsSpam ~ ., 
+                 data=train.df,
+                 family="binomial")
+  preds <- predict(mod.log,
+                   newdata=test.df,type="response") > 0.5
+  errs[fold] <- with(test.df,mean((IsSpam==1) != preds))
+}
+c(mean(errs),sd(errs))
+errs
+(err.log <- mean(errs))
+```
+```{r}
+c(err.ridge,err.lasso,err.log)
+```
+The error for logistic regression with the reduced predictor setlooks slightly better, but we are troubled by the error messages from glm.
+
+
+#  KNN
+
+Check to see if the data  are scaled
+```{r}
+summary(apply(spam.x,2,mean))
+```
+Nope
+```{r}
+spam.x <- scale(spam.x)
+summary(apply(spam.x,2,mean))
+```
+Much better
+```{r}
+N <- nrow(spam.x)
+kVal <- 10
+knnERR_SE <- function(kVal,numFolds=10){
+  folds <- sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.x <- spam.x[folds != fold,] 
+    train.y <- spam.y[folds != fold]
+    test.x <- spam.x[folds == fold,] 
+    test.y <-  spam.y[folds == fold]  
+    mod.knn <- knn(train.x,test.x,train.y,k=kVal)
+    length(mod.knn)
+    length(test.y)
+    table(mod.knn,test.y)
+    errs[fold] <- mean(mod.knn != test.y)
+  }
+  c(mean(errs),sd(errs))
+}
+## just the M
+knnERR <- function(kVal,numFolds=10){ knnERR_SE(kVal,numFolds)[1]}
+
+knnERR(1)
+knnERR(4)
+knnERR(10)
+knnERR(20)
+knnERR(30)
+```
+
+```{r}
+maxK <- 20
+kVals <- 1:maxK
+allErrs <- map_dbl(kVals,knnERR)
+```
+
+
+```{r}
+data.frame(k=kVals,err=allErrs) %>% 
+  ggplot()+
+  geom_point(aes(k,err))
+
+
+```
+
+KNN appears to be having a real hard time. Part of the problem is the  large number of predictors.
+
+```{r}
+min(allErrs)
+```
+
+This error rate is not competitive with what we saw earlier, and its not consistently even close to other models' error rate.
+```{r}
+c(err.ridge,err.lasso,err.log)
+```
+Our winner among old models is log model with a small win of 0.07234.
+
+Now lets move on to ADA Boosting:
+#ADABOOSTING:
+```{r}
+spam.df1 <- spam.df %>%
+  mutate(class=ifelse(IsSpam > 0,1,0))%>%
+  select(-IsSpam)
+with(spam.df1,table(class))
+data.df <- spam.df1
+N <- nrow(data.df)
+train <- sample(1:N,N/2,rep=F)
+train.df <- data.df[train,]
+test.df <- data.df[-train,]
+with(train.df,table(class))
+names(test.df)
+```
+
+```{r}
+numTrees <- 200
+theShrinkage <- 1
+theDepth <- 2
+mod.gbm <- gbm(class ~ .,
+               data=train.df,
+               distribution="adaboost",
+               shrinkage=theShrinkage,
+               n.trees=numTrees,
+               interaction.depth = theDepth)
+```
+
+
+```{r}
+numTreesPred <- 100
+prob.gbm <- predict(mod.gbm,
+                    newdata=test.df,
+                    n.trees=100,type="response")
+pred.gbm <- ifelse(prob.gbm > 0.5,1,0)
+```
+
+
+```{r}
+summary(mod.gbm)
+```
+```{r}
+mod.gbm.cv <- gbm(class ~ .,
+                  data=train.df,
+                  distribution="adaboost",
+                  shrinkage=theShrinkage,
+                  n.trees=numTrees,
+                  interaction.depth = theDepth,
+                  cv.folds = 10)
+gbm.perf(mod.gbm.cv)
+```
+
+
+```{r}
+theShrinkage <- 0.05
+mod.gbm.cv <- gbm(class ~ .,
+                  data=train.df,
+                  distribution="adaboost",
+                  shrinkage=theShrinkage,
+                  n.trees=numTrees,
+                  interaction.depth = theDepth,
+                  cv.folds = 10)
+(numTreesOpt <- gbm.perf(mod.gbm.cv))
+```
+
+#See how this work with opt tree number
+```{r}
+mod.gbm <- gbm(class ~ .,
+               data=train.df,
+               distribution="adaboost",
+               shrinkage=theShrinkage,
+               n.trees=numTreesOpt,
+               interaction.depth = theDepth)
+prob.gbm <- predict(mod.gbm,
+                    newdata=test.df,
+                    n.trees=numTreesOpt,
+                    type="response")
+pred.gbm <- ifelse(prob.gbm > 0.5,1,0)
+(err.gbm <- with(test.df,mean(class != pred.gbm)))
+```
+
+
+
+```{r}
+cvADA <- function(data.df,theShrinkage,theDepth,numTrees,numFolds=5){
+  n <- nrow(data.df)
+  folds <- sample(1:numFolds,n,rep=T)
+  errs <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.df <- data.df[folds != fold,]
+    test.df <- data.df[folds == fold,]
+    mod.gbm <- gbm(class ~ .,
+                   data=train.df,
+                   interaction.depth = theDepth,
+                   distribution="adaboost",
+                   shrinkage=theShrinkage,
+                   n.trees=numTrees)
+    prob.gbm <- predict(mod.gbm,
+                        newdata=test.df,
+                        n.trees=numTrees,type="response")
+    errs[fold] <- with(test.df,mean((class == 1) != (prob.gbm > 0.5)))
+    with(test.df,table((class),(prob.gbm > 0.5)))
+  }
+  print(errs)
+  mean(errs)
+}
+```
+
+
+```{r}
+shrinkVals <- c(0.005,0.001,0.05,0.1,0.5)
+depthVals <- c(2,3,4,5)
+gridVals <- expand.grid(shrinkVals,depthVals)
+calcErr <- function(shrink,depth){
+  mod.gbm <- gbm(class ~ .,
+                 data=train.df,
+                 distribution="adaboost",
+                 shrinkage=shrink,
+                 n.trees=2*numTreesOpt,
+                 interaction.depth = depth)
+  prob.gbm <- predict(mod.gbm,
+                      newdata=test.df,
+                      n.trees=numTreesOpt,
+                      type="response")
+  pred.gbm <- ifelse(prob.gbm > 0.5,1,0)
+  with(test.df,mean(class != pred.gbm))
+}
+
+##Test it out
+calcErr(theShrinkage,theDepth)
+```
+
+```{r}
+gridErrs <- apply(gridVals,1,function(row) calcErr(row[1],row[2]))
+id <- which.min(gridErrs)
+(bestVals <- gridVals[id,])
+shrinkOpt <- bestVals[1]
+depthOpt <- bestVals[2]
+```
+Then lets see our optimal mse value for boosting
+```{r}
+(mse.ada <- cvADA(spam.df1,shrinkOpt, depthOpt, numTreesOpt))
+err.ada <- mse.ada
+```
+
+```{r}
+c(err.ada,err.ridge,err.lasso,err.log)
+```
+As we can see, ADA boosting is winning a lot here.
