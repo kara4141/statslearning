@@ -1,0 +1,101 @@
+---
+title: 'IntroCV: Assignment 3- Auto Data'
+author: "Shan Chen"
+date: "3/31/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(ISLR) ## for lda
+library(glmnet)
+library(class)#for knn
+```
+
+## Assignment 3: Classification 1
+For the predictive question above using KNN, what is the best value of k? Is it k = 1? Use 10-fold cross-validation. To estimate the best possible
+Caution: For some reason, R is knn  is unhappy with k=2.
+```{r}
+names(Auto)
+```
+
+```{r}
+c(Auto$year)
+with(Auto,table(year))
+```
+Question: Can we predict which cars were made before 1978?
+
+check data with car config of mpg v acceleration:
+```{r}
+Auto <- Auto %>%
+  mutate(pre78 = year < 78)
+Auto%>%
+  ggplot()+
+  geom_point(aes(mpg,acceleration,color=factor(pre78)))
+```
+ten folds
+
+```{r}
+kVal <- 40
+fold <- 1
+n <- nrow(Auto)
+errCV <- function(kVal,numFolds=10){
+  errs <- numeric(numFolds)
+  folds <- sample(1:numFolds,n,rep=T)
+  for(fold in 1:numFolds){
+    train.df <- Auto[folds != fold,]
+    test.df <- Auto[folds == fold,]
+    train.x <- data.matrix(train.df[c("mpg","acceleration")])
+    resp.x<- data.matrix(train.df[c("pre78")])
+    test.x <- data.matrix(test.df[c("mpg","acceleration")])
+    mod.knn <- knn(train.x,test.x,resp.x,k=kVal)
+    errs[fold] <- with(test.df,mean(pre78 != (mod.knn==1)))
+  }
+  mean(errs)
+}
+```
+
+As we can see from graph below, it first hits the low around 30 and the lowest hits about 110.
+```{r}
+## Skip 2 and plot error changes over kval
+kMax <- 100
+kVals <- 2*(1:kMax)+1
+errs <- map_dbl(kVals,errCV)
+data.frame(k=kVals,err=errs) %>%
+  ggplot()+
+  geom_point(aes(k,err))+
+  geom_line(aes(k,err))
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+=```{r}
+```
+

@@ -1,0 +1,110 @@
+---
+title: "Prostate GLMNET"
+author: "Shan Chen"
+date: "04/02/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(ISLR) ## for lda
+library(MASS)
+library(glmnet)
+library(class) #for knn
+```
+manage data
+```{r}
+prostate.df <- read_csv("Prostate.csv")
+prostate.mat <- data.matrix(prostate.df)
+data.x <- prostate.mat[,-9]
+data.y <- prostate.mat[,9]
+```
+
+```{r}
+numLambda <- 100
+expVals <- seq(-4,4,length=numLambda)
+lambda.grid <- 10^expVals
+plot(expVals,lambda.grid)
+```
+
+
+```{r}
+cv.ridge <- cv.glmnet(data.x,
+                      data.y,
+                      alpha=0,
+                      lambda=lambda.grid,
+                      intercept=TRUE)
+plot(cv.ridge)
+```
+
+
+```{r}
+N <- nrow(prostate.df)
+numFolds <- 10
+lambda.val <- lambda.grid[1]
+```
+
+good old kfold with some results:
+```{r}
+folds <- sample(1:numFolds,N,rep=T)
+mseVals <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.x <- data.x[folds != fold,]
+  train.y <- data.y[folds != fold]
+  test.x <- data.x[folds == fold,]
+  test.y <- data.y[folds == fold]
+  ##
+  mod.ridge <-
+    glmnet(train.x,train.y,alpha=0,
+           lambda=lambda.val,
+           intercept=TRUE)
+  pred.ridge <- predict(mod.ridge,
+                        newx=test.x)
+  mseVals[fold] <- mean((pred.ridge-test.y)^2)
+}
+c(mean(mseVals),sd(mseVals))
+```
+
+```{r}
+cvLambda <- function(lambda.val){
+  folds <- sample(1:numFolds,N,rep=T)
+  mseVals <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.x <- data.x[folds != fold,]
+    train.y <- data.y[folds != fold]
+    ###
+    test.x <- data.x[folds == fold,]
+    test.y <- data.y[folds == fold]
+    ##
+    mod.ridge <-
+      glmnet(train.x,train.y,
+             alpha=0,lambda=lambda.val,intercept=TRUE)
+    pred.ridge <- predict(mod.ridge,newx=test.x)
+    mseVals[fold] <- mean( (pred.ridge-test.y)^2)
+  }
+  c(mean(mseVals),sd(mseVals))
+}
+```
+
+lamda cv values:
+```{r}
+cvVals <- matrix(nrow=numLambda,ncol=2)
+for(n in 1:numLambda){
+  lambda.val <- lambda.grid[n]
+  cvVals[n,] <- cvLambda(lambda.val)
+}
+#put into data and plot
+cvVals.df <- data.frame(lambda=lambda.grid,
+                        mse = cvVals[,1],
+                        se = cvVals[,2])
+cvVals.df %>%
+  ggplot()+
+  geom_point(aes(log(lambda),mse),color="red")+
+  geom_segment(aes(log(lambda),xend=log(lambda),
+                   y=mse-se,yend=mse+se),alpha=0.25)+
+  geom_smooth(aes(log(lambda),mse),color="red",se=F)+
+  geom_smooth(aes(log(lambda),mse+se),color="grey",se=F)+
+  geom_smooth(aes(log(lambda),mse-se),color="grey",se=F) +
+  labs(title="Cross Validation of Ridge Regression",
+       subtitle="Prostate Data Set")
+```

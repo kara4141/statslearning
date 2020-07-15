@@ -1,0 +1,105 @@
+---
+title: "Eigenfaces"
+author: "Shan Chen"
+date: "5/4/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F) 
+library(glmnet)
+library(tidyverse)
+```
+#Eigenspace
+```{r}
+dataDir <- "/Users/shawnchen/Desktop"
+catsAll <- read.csv(file.path(dataDir,"cats.csv"),header=F) 
+dogsAll <- read.csv(file.path(dataDir,"dogs.csv"),header=F)
+N <- ncol(catsAll)
+train <- sample(1:N, N-20, replace=F) 
+cats <- catsAll[,train]
+catsOther <- catsAll[,-train]
+dogs <- dogsAll[,train]
+dogsOther <- dogsAll[,-train]
+
+cats0 <- scale(cats,scale=F) 
+cat.svd <- svd(cats0)
+catU <- cat.svd$u
+catHat <- catU %*% t(catU)
+
+dogs0 <- scale(dogs,scale=F) 
+dog.svd <- svd(dogs0)
+dogU <- dog.svd$u
+dogHat <- dogU %*% t(dogU)
+
+checkSpecies <- function(species, image){ 
+  catProj <- catHat %*% image
+  dogProj <- dogHat %*% image
+  catDist <- mean((image-catProj)^2) 
+  dogDist <- mean((image-dogProj)^2)
+  pet <- ifelse(catDist<dogDist, "cat", "dog")
+  ifelse(pet != species, F, T) 
+}
+```
+
+```{r}
+pred.cat <- apply(catsOther, 2,
+                  function(col) checkSpecies("cat", col))
+pred.dog <- apply(dogsOther, 2,
+                  function(col) checkSpecies("dog", col))
+(err.cat <- mean(!pred.cat))
+```
+```{r}
+(err.dog <- mean(!pred.dog))
+(err.svd <- mean(c(err.cat, err.dog)))
+```
+#Penalized Regression
+
+```{r}
+catsAll <- data.frame(t(as.matrix(catsAll))) 
+dogsAll <- data.frame(t(as.matrix(dogsAll))) 
+catsAll$class <- "cat"
+dogsAll$class <- "dog"
+all.df <- full_join(catsAll, dogsAll) %>% 
+  mutate(class = ifelse(class=="cat", 1, 0))
+```
+setup：
+```{r}
+N <- nrow(all.df)
+numPreds <- ncol(all.df)-1
+train <- sample(1:N, N-50, replace = F)
+train.x <- data.matrix(all.df[train, 1:numPreds]) 
+train.y <- data.matrix(all.df[train, numPreds+1]) 
+test.x <- data.matrix(all.df[-train, 1:numPreds]) 
+test.y <- data.matrix(all.df[-train, numPreds+1])
+lambda.grid <- 10^seq(-2,2,length=50)
+```
+#ridge
+```{r}
+mod.ridge <- cv.glmnet(train.x, train.y,
+                       alpha=0,
+                       lambda=lambda.grid,
+                       family="binomial") 
+plot(mod.ridge)
+lambda.opt <- mod.ridge$lambda.1se
+preds.ridge <- predict(mod.ridge, newx=test.x, s=lambda.opt, type="response")
+preds.ridge <- ifelse(preds.ridge>.5, 1, 0)
+(err.ridge <- mean(preds.ridge!=test.y))
+```
+#lasso
+```{r}
+mod.lasso <- cv.glmnet(train.x, train.y,
+                       alpha=1, 
+                       lambda=lambda.grid,
+                       family="binomial")
+plot(mod.lasso)
+lambda.opt <- mod.ridge$lambda.1se
+preds.lasso <- predict(mod.lasso, newx=test.x, s=lambda.opt, type="response")
+preds.lasso <- ifelse(preds.lasso>.5, 1, 0)
+(err.lasso <- mean(preds.lasso!=test.y))
+```
+
+```{r}
+c(err.svd, err.lasso, err.ridge)
+```
+svd did the best!

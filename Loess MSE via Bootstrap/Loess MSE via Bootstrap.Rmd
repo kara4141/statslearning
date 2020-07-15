@@ -1,0 +1,185 @@
+---
+title: 'Assignment 1: Loess MSE via Bootstrap'
+author: "Shan Chen"
+date: "2/21/2020"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+# Instructions
+Recall we used a fixed data set (data.df) and then bootstrapped it to find a MSE for the loess model. In the case in class, we  used a fixed value of span (0.75 or so). 
+
+Redo the bootstrapped MSE calculation with values of span in the interval (.1,3). Can you settle on a value of the span that minimizes the MSE? 
+
+Plan: It might help to write a helper function that  will compute the estimated (mean) MSE and variability (variance or sd) as a function of the span. From these, create a plot that shows MSE as a function of span, along with some indication of the variability of the estimate. For example, you should plot mse, mse+2*sd, mse-2*sd all as a function of span.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+Recall we used a fixed data set (data.df) and then bootstrapped it to find a MSE for the loess model. In the case in class, we  used a fixed value of span (0.75 or so). 
+
+Replace the underlying function f(x) (=b0+b1*x) with
+
+  f(x)= sin(x)-3*cos(3*x)
+
+Generate the data as before...
+```{r}
+b0 <- 1
+b1 <- 3
+##f <- function(x) b0+b1*x
+f <- function(x) sin(x)-3*cos(3*x)
+```
+
+
+```{r}
+buildData <- function(N,b0,b1,sigma){
+  x <- rnorm(N,0,1)
+  y <-f(x)+rnorm(N,0,sigma)
+  data.frame(x,y)
+}
+
+N <- 50  ##sample size
+sigma <- 2.5
+data.df <- buildData(N,b0,b1,sigma)
+```
+Display data
+```{r}
+ggplot(data.df)+
+    geom_point(aes(x,y))+
+  labs(title="Generated Data from f <- function(x) sin(x)-3*cos(3*x)")
+```
+## Loess model
+
+First build and predict with a loess model to make sure we know how this works.
+First with a fix span value of 0.25
+```{r}
+theSpan <- .25
+##theSpan <- 100
+mod.lo <- loess(y~x,data=data.df,span=theSpan) ##set up loess
+data.df$pred <- predict(mod.lo)
+mse <- with(data.df,mean((y-pred)^2)) #calculate mse
+```
+
+```{r}
+data.df %>% 
+ggplot()+
+    geom_point(aes(x,y),color="blue")+
+      geom_line(aes(x,pred),color="red")+
+  labs(title="Synthetic Data from f <- function(x) sin(x)-3*cos(3*x)",
+       subtitle=sprintf("With Loess  (span = %s): MSE=%s", theSpan,round(mse,3)))
+```
+
+# Bootstrapping and generate new testing data
+
+```{r}
+theSpan <- .3
+N <- nrow(data.df)
+bootSample <- sample(1:N,N,rep=T)
+boot.df <- data.df[bootSample,]
+#see test data
+ggplot(boot.df)+
+    geom_point(aes(x,y))+
+  labs(title="Generated test Data")
+#modeling and calculating loses
+mod.lo <- loess(y~x,data=data.df,span=theSpan)
+boot.df$pred <- predict(mod.lo,newdata=boot.df)
+mse.boot <- with(boot.df,mean((y-pred)^2))
+c(mse,mse.boot)
+```
+
+These two values should be close. The mse.boot has  more validity since we predicted on a different data set  from the one on which the model was built. ##But I do not see really close mse honestly.
+
+## Repeat the Bootstrapping 100 times
+```{r}
+numBoots <- 100
+mseVals <- array(numeric(0),numBoots)
+### 
+for(m in 1:numBoots){
+  ## training data
+ bootSample <- sample(1:N,N,rep=T)
+ train.df <- data.df[bootSample,] 
+ ## testing data
+ bootSample <- sample(1:N,N,rep=T)
+ test.df <- data.df[bootSample,] 
+ ##model and predict
+ mod.lo <- loess(y~x,data=train.df,span=.3)
+ boot.df$pred <- predict(mod.lo,test.df)
+ ##save the mse values
+ mseVals[m] <- with(test.df,mean((y-pred)^2))
+}
+
+```
+Now use the mean and standard deviation as a guage of the MSE estimate.
+
+```{r}
+c(mean(mseVals),sd(mseVals))
+```
+
+```{r}
+mseFunc <- function(theSpan,numBoots){
+  mseVals <- array(numeric(0),numBoots)
+  ### 
+  m <- 1
+  for(m in 1:numBoots){
+    ## bootstrap for training data
+    bootSample <- sample(1:N,N,rep=T)
+    train.df <- data.df[bootSample,] 
+
+    ## bootstrap again for testing data
+    bootSample <- sample(1:N,N,rep=T)
+    test.df <- data.df[bootSample,] 
+    ##model and predict
+    mod.lo <- loess(y~x,data=train.df,span=theSpan)
+    test.df$pred <- predict(mod.lo,newdata=test.df)
+    test.df$y
+    ##save the mse values
+    mseVals[m] <- with(test.df,mean((y-pred)^2,na.rm=T))
+  } 
+  # Return the mean and sd of the mseVals
+  c(mean(mseVals),sd(mseVals))
+  }
+```
+See result
+```{r}
+mseFunc(5,2)
+```
+```{r}
+mseFunc(.3,200)
+```
+
+## MSE as a function of span
+Now we are ready to put all this together and plot mse (+/- 2*standard deviation).
+
+```{r}
+numSpans <- 100
+numBoots <- 200
+minSpan <- 0.25
+maxSpan <- 2.0
+spanVals <- seq(minSpan,maxSpan,length=numSpans)
+## store the mean and standard deviation of the mse for each spanVal
+spanMSEVals <- matrix(nrow=numSpans,ncol=2)
+k <- 1
+for(theSpan in spanVals){
+  
+  spanMSEVals[k,] <- mseFunc(theSpan,numBoots)
+  print(c(theSpan,spanMSEVals[k,1]))
+  k <- k+1
+}
+```
+
+Display result
+```{r}
+
+data.frame(span=spanVals,mse=spanMSEVals[,1],sdev=spanMSEVals[,2]) %>% 
+  ggplot()+
+  geom_point(aes(span,mse),color="blue")+
+    geom_point(aes(span,mse+sdev),color="red")+
+      geom_point(aes(span,mse-sdev),color="red")
+```
+

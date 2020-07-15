@@ -1,0 +1,172 @@
+---
+title: "Untitled"
+author: "Shan Chen"
+date: "2/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+ *  *age* is age of volunteer
+ *  *score* is composite kidney health score.
+
+```{r}
+
+fileName<-"kidneyCASI.csv"
+```
+
+```{r}
+kidney.df <- read.csv("kidneyCASI.csv")
+N <- nrow(kidney.df)
+```
+
+
+```{r}
+ggplot(kidney.df)+
+    geom_point(aes(age,score))
+```
+
+Note: Kidneys start to deteriorate as people get older (ARGH)!
+
+
+Assess the utility of both lm and loess as a predictive tool
+prediction for the score. Use MSE as the loss function. 
+
+For  loess, estimate an optimal value for the span.
+```{r}
+mselm <- function(theFormula,numBoots){
+  msevals <- array(numeric(0),numBoots)
+  for (m in 1:numBoots){
+    bootSample <- sample(1:N,N,rep=T)
+    train.df <- kidney.df[bootSample,] ##training bootstrap data
+    
+    bootSample <- sample(1:N,N,rep=T)
+    test.df <- kidney.df[bootSample,] ##creating bootstrap test data
+    ##build model and predict
+    mod.lm <- lm(formula(theFormula),data = train.df)
+    test.df$pred <- predict(mod.lm,newdata = test.df)
+    
+    msevals[m] <- with(test.df,mean((score-pred)^2,na.rm = T))
+  }
+  ##value return
+  c(mean(msevals),sd(msevals))
+}
+
+```
+
+```{r}
+##run the function
+theFormula <- "score ~ age"
+numBoots <- 100
+mselm(theFormula, numBoots)
+```
+
+```{r}
+mseLoess <- function(theSpan,numBoots){
+  mseVals <- array(numeric(0),numBoots)
+  ### 
+  m <- 1
+  for(m in 1:numBoots){
+    ## bootstrap for training data
+    bootSample <- sample(1:N,N,rep=T)
+    train.df <- kidney.df[bootSample,] 
+
+    ## bootstrap again for testing data
+    bootSample <- sample(1:N,N,rep=T)
+    test.df <- kidney.df[bootSample,] 
+    ##model and predict
+    mod.lo <- loess(score~age,data=train.df,span=theSpan)
+    test.df$pred <- predict(mod.lo,newdata=test.df)
+    ##save the mse values
+    mseVals[m] <- with(test.df,mean((score-pred)^2,na.rm=T))
+  } 
+  # Return the mean and sd of the mseVals
+  c(mean(mseVals),sd(mseVals))
+}
+
+```
+
+```{r}
+theSpan <- 3
+numBoots <- 100
+mseLoess(theSpan, numBoots)
+```
+For  lm, allow higher order terms (up to age^3)
+
+```{r}
+numBoots <- 1000
+```
+
+### Linear models
+Linear models using up to cubic terms
+```{r}
+theFormula1 <- "score ~ age"
+theFormula2 <- "score ~ age + I(age^2)"
+theFormula3 <- "score ~ age + I(age^2) + + I(age^3)"
+
+mse.lm1 <- mselm(theFormula1, numBoots)
+mse.lm2 <- mselm(theFormula2, numBoots)
+mse.lm3 <- mselm(theFormula3, numBoots)
+
+```
+
+```{r}
+c(mse.lm1[1],mse.lm2[1],mse.lm3[1])
+```
+Not much difference between these three linear models even we raise its to cubic terms.
+
+Experiment with the span values to find a decent range
+```{r}
+theSpan <- .30
+theSpan <- 3
+mseLoess(theSpan, numBoots)
+```
+
+
+```{r}
+numSpans <- 100
+minSpan <- .3
+maxSpan <- 5
+spanVals <- seq(minSpan,maxSpan,length=numSpans)
+## store the mean and standard deviation of the mse for each spanVal
+spanMSEVals <- matrix(nrow=numSpans,ncol=2)
+k <- 1
+for(theSpan in spanVals){
+  spanMSEVals[k,] <- mseLoess(theSpan,numBoots)
+  print(c(theSpan,spanMSEVals[k,1]))
+  k <- k+1
+}
+```
+In particular, summarize the difference in predictions
+and the standard error of prediction for each algorithms. Use bootstrapping for both algorithms. Are there any marked differences between these two algorithms? Is there
+any reason to favor one method over the other based on MSE?
+```{r}
+##display data
+data.frame(span=spanVals,mse=spanMSEVals[,1],sdev=spanMSEVals[,2]) %>% 
+  ggplot()+
+  geom_point(aes(span,mse),color="blue")+
+    geom_point(aes(span,mse+sdev),color="red")+
+      geom_point(aes(span,mse-sdev),color="red")
+```
+
+Really small changes. Span has very little effect on changes in mse.
+
+## Conclusion
+Between a simple linear model and a loess model of varying span, the best choice of model appears to be the most basic linear model.
+     score ~ age
+For almost every model we looked at the MSE is approximately
+```{r}
+mse.lm1[1]
+```
+A 95% coverage interval, based on boostrapping is roughly   
+```{r}
+c(mse.lm1[1]-2*mse.lm1[2],mse.lm1[1]+2*mse.lm1[2])
+```
+As value, loses and lm do not share large differences, they have really similar mse values.
+
+

@@ -1,0 +1,448 @@
+---
+title: "House Price Analysis"
+author: "Shan Chen"
+date: "4/12/2020"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(ISLR) ## for lda
+library(MASS)
+library(glmnet)
+library(FNN) #for knn
+```
+
+```{r}
+suppressWarnings(library(tidyverse))
+```
+
+# The Data: Election Turnout Prediction
+
+The data files are related to the presidential election of 2012 (Romney vs Obama):  
+
+* countyElection.csv: For each US county, demographic data along with voter turnout rates   
+* county_facts_dictionary.csv: A data dictionary containing  descriptions of each of the demographic  fields in  countyElection.csv.
+
+
+Establish data locations and read the data.
+```{r}
+dataDir <- "/Users/shawnchen/Desktop"
+dataFile <- "HousePrices.csv"
+dictFile <- "houseNames.csv"
+
+
+dictionary.df <-
+    read.csv(file.path(dataDir,dictFile))
+housePrices.df <- read.csv(file.path(dataDir,dataFile))
+names(housePrices.df)
+dim(housePrices.df)
+numPreds <- ncol(housePrices.df)-1
+feature.mat <- data.matrix(housePrices.df[,1:numPreds])
+feature.mat.scaled <- scale(feature.mat)
+houseScaled.df <- data.frame(feature.mat.scaled,housePrices.df[,numPreds+1])
+```
+
+Linear:
+```{r}
+N <- nrow(housePrices.df)
+numFolds <- 10
+folds <- sample(1:numFolds,N,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.df <- housePrices.df[folds != fold,]
+  test.df <- housePrices.df[folds == fold,]
+  mod.lm <- lm(SalePrice ~ ., data=train.df)
+  pred <- predict(mod.lm, newdata=test.df)
+  errs[fold] <- with(test.df,mean((SalePrice-pred)^2))
+}
+mse.lm <- mean(errs)
+```
+
+
+```{r}
+totPreds <- 32
+numPreds1 <- 10 #chose 2 pre
+sampPreds <- sort(sample(1:totPreds,numPreds,rep=F))
+data.df <- housePrices.df[,c(sampPreds,totPreds+1)]
+
+numFolds <- 10
+folds <- sample(1:numFolds,N,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.df <- data.df[folds != fold,]
+  test.df <- data.df[folds == fold,]
+  mod.lm <- lm(SalePrice ~ ., data=train.df)
+  pred <- predict(mod.lm, newdata=test.df)
+  errs[fold] <- with(test.df,mean((SalePrice-pred)^2))
+}
+(mse.lm <- mean(errs))
+```
+
+
+```{r}
+RandPreds <- function(numPreds){
+  sampPreds <- sort(sample(1:totPreds,numPreds,rep=F))
+  data.df <- housePrices.df[,c(sampPreds,totPreds+1)]
+  folds <- sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.df <- data.df[folds != fold,]
+    test.df <- data.df[folds == fold,]
+    mod.lm <- lm(SalePrice ~ ., data=train.df)
+    pred <- predict(mod.lm, newdata=test.df)
+    errs[fold] <- with(test.df,mean((SalePrice-pred)^2))
+  }
+  mse.lm <- mean(errs)
+  c(mse.lm,sampPreds)
+}
+```
+
+```{r}
+RandPreds(32)
+RandPreds(20)
+RandPreds(17)
+RandPreds(15)
+RandPreds(12)
+RandPreds(10)
+RandPreds(9)
+RandPreds(8)
+RandPreds(5)
+
+msewin.lm = RandPreds(32)
+```
+KNN:
+```{r}
+housePrices.mat <- data.matrix(housePrices.df)
+##just the predictors, scaled
+housePrices.x <- scale(housePrices.mat[,-32])
+## the response
+housePrices.y <- housePrices.mat[,32]
+## check that these are close to 0
+colMeans(housePrices.x)
+```
+
+
+```{r}
+kVal <- 10
+## build the folds
+numFolds <- 10
+folds <- sample(1:numFolds,N,rep=T)
+## Ready to cross-validate
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.x <- housePrices.x[folds != fold,]
+  test.x <- housePrices.x[folds == fold,]
+  train.y <- housePrices.y[folds != fold]
+  test.y <- housePrices.y[folds == fold]
+  mod.knn <- knn.reg(train.x,test.x,train.y,k=kVal)
+  pred <- mod.knn$pred
+  errs[fold] <- mean((test.y-pred)^2)
+}
+mse.knn <- mean(errs)
+##compare with lm....
+c(mse.lm,mse.knn)
+```
+
+```{r}
+mseKNN <- function(kVal){
+  folds <- sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.x <- housePrices.x[folds != fold,]
+    test.x <- housePrices.x[folds == fold,]
+    train.y <- housePrices.y[folds != fold]
+    test.y <- housePrices.y[folds == fold]
+    mod.knn <- knn.reg(train.x,test.x,train.y,k=kVal)
+    pred <- mod.knn$pred
+    errs[fold] <- mean((test.y-pred)^2)
+  }
+  mean(errs)
+}
+```
+
+#set k= 1-61 only odd
+```{r}
+maxK <- 30
+#only odd values
+kVals <- 2*(1:maxK)+1
+## this takes a moment or two...
+errsKNN <- map_dbl(kVals,mseKNN)
+```
+
+#knn vs err by values
+```{r}
+data.frame(k=kVals,err=errsKNN) %>%
+ggplot()+
+geom_point(aes(k,err))+
+geom_line(aes(k,err))
+
+```
+
+
+```{r}
+minid <- which.min(errsKNN)
+(mse.knn <- errsKNN[minid])
+c(msewin.lm,mse.knn)
+```
+KNN Won a lot!
+
+# Feature Selection:
+Note: prints some relevant information  as it goes along so you can track the progress.
+```{r Main Loop}
+availPreds <- 1:numPreds
+modelPreds <- c()
+## keep track of the R2 for reference
+maxR2 <- c()
+##Keep going as long as there are available predictors left
+while(length(availPreds) > 0){
+    ##add predictor which increases R^2 the most
+    ##keep track of the R^2 values for reference
+    allR2 <- c()
+    for(id in availPreds){
+      ##the augmented predictors
+      augPreds <- c(modelPreds,id)
+      ## Build the data frame with the augmented predictors 
+      data.df <- housePrices.df[,c(augPreds,numPreds+1)]
+      ##the model and its summary
+      mod.curr <- lm(SalePrice ~ .,
+                     data=data.df)
+      mod.sum <- summary(mod.curr)
+      ##grab the R^2
+      allR2 <- c(allR2,mod.sum$r.squared)
+    }
+    ##Find the index of the min R^2
+    max.id <- which.max(allR2)
+    ##get the best predictor and R^2
+    bestPred <- availPreds[max.id]
+    bestR2 <- max(allR2)
+    ##Add these into the collection
+    modelPreds <- c(modelPreds,bestPred)
+    ## remove the  bestPred from  the availPreds
+    availPreds <- setdiff(availPreds,bestPred)
+    maxR2 <- c(maxR2,bestR2)
+    ##remove bestsPred from avail
+    ## Print stuff out for debugging and attention-grabbing
+    print(sprintf("Pred Added: %s  R^2 Value: %s",bestPred,round(bestR2,3)))
+    ##print(modelPreds)
+}
+```
+
+
+
+It will help to have a help function  to compute the cross-validated MSE.  
+```{r}
+
+## args: a data frame and a number of folds (default to 10).
+## ret: k-fold cross-validated MSE and the Standard Error
+data.df <- housePrices.df
+mseCV_SE <- function(data.df,numFolds=10){
+  dataSize <- nrow(data.df)
+  folds <- sample(1:numFolds,dataSize,rep=T)
+  mse <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.df <- data.df[folds !=fold,]
+    test.df <- data.df[folds==fold,]
+    mod <- lm(SalePrice  ~ ., 
+              data=train.df)
+    vals <- predict(mod,newdata=test.df)
+    mse[fold] <- with(test.df,mean((SalePrice-vals)^2))
+  }
+  c(mean(mse),sqrt(var(mse)/numFolds))
+}
+ 
+## and just the CV
+mseCV <- function(data.df,numFolds=10){ 
+ mseCV_SE(data.df,numFolds)[1]
+}
+
+```
+
+
+
+Compute the MSE of all the models from the forward selection
+```{r}
+allMSE <- map_dbl(1:(numPreds-0),
+                  function(totPred) 
+                 mseCV(housePrices.df[,c(modelPreds[1:totPred],numPreds+1)]))
+
+```
+How's this look?
+```{r}
+data.frame(numPred=1:(numPreds-0),
+           mse=allMSE) %>% 
+  ggplot()+
+  geom_point(aes(numPred,mse))+
+  geom_line(aes(numPred,mse))+
+  labs(title="Forward Selection: Cross-validation",
+       subtitle="Predictors selected with maximal R^2 at each  step",
+       x = "Number of Predictors",
+       y = "MSE (CV)")
+```
+
+```{r}
+(predMin <- which.min(allMSE))
+##build this model
+data.df <- housePrices.df[,c(modelPreds[1:predMin],numPreds+1)]
+## get  both the MSE  estimate and the SE
+(mseInfo <- mseCV_SE(data.df))
+
+## add the MSE and the SE.
+mseCut <- mseInfo[1]+mseInfo[2]
+## 
+(thePreds <- (1:numPreds)[allMSE < mseCut])
+
+(optNumPreds <- min(thePreds))
+(forwardPreds <- modelPreds[1:optNumPreds])
+```
+Interesting, just `r optNumPreds` predictors.
+
+and the resulting estimated MSE
+```{r}
+(mse.forward <- allMSE[optNumPreds])
+```
+
+# Backward Selection
+
+
+```{r}
+availPreds <- 1:numPreds
+modelPreds <- c()
+while(length(availPreds) >1){
+  allR2 <- c()
+  pred <- 1
+  for(pred in availPreds){
+    testPreds <- setdiff(availPreds,pred)
+     # data.df <- house.df[,c(augPreds,numPreds+1)]
+     #  ##the model and its summary
+     #  mod.curr <- lm(SalePrice ~ .,
+     #                 data=data.df)
+     # 
+    
+    data.df <- housePrices.df[,c(testPreds,numPreds+1)]
+    mod <- lm(SalePrice ~ ., data=data.df)
+    mod.sum <- summary(mod)
+    allR2 <- c(allR2,mod.sum$r.squared)
+  }
+  max.id <- which.max(allR2)
+  bestPred <- availPreds[max.id]
+  ##tack the best predictor on the front
+  modelPreds <- c(bestPred,modelPreds)
+  availPreds <- setdiff(availPreds,bestPred)
+  print(sprintf("Pred Added: %s  R^2 Value: %s",bestPred,round(allR2[max.id],3)))
+}
+## Tack the last one on the front
+modelPreds <- c(availPreds,modelPreds)
+```
+Cross-validate the MSE
+
+```{r}
+allMSE <- map_dbl(1:numPreds, function(tot) 
+  mseCV(housePrices.df[,c(modelPreds[1:tot],numPreds+1)]))
+                                                    
+###
+data.frame(numPreds=1:numPreds,MSE=allMSE) %>%
+  ggplot()+
+  geom_point(aes(numPreds,MSE))+
+  geom_line(aes(numPreds,MSE))+
+  labs(title="Backward Selection: Cross-validation",
+       subtitle="Predictors selected with maximal R^2 at each  step",
+       x="Number of Predictor")
+```
+
+
+ 1 SE Rule
+```{r}
+(predMin <- which.min(allMSE) )
+##build this model
+data.df <- housePrices.df[,c(modelPreds[1:predMin],numPreds+1)]
+## get  both the MSE  estimate and the SE
+(mseInfo <- mseCV_SE(data.df))
+
+## add the MSE and the SE.
+mseCut <- mseInfo[1]+mseInfo[2]
+##
+(thePreds <- (1:numPreds)[allMSE < mseCut])
+
+(optNumPreds <- min(thePreds))
+(backwardPreds <- modelPreds[1:optNumPreds])
+```
+
+```{r}
+(mse.backward <- allMSE[optNumPreds])
+dictionary.df[backwardPreds,]
+```
+How do these compare
+```{r}
+forwardPreds
+backwardPreds
+```
+all four comparison
+```{r}
+c(mse.backward,mse.forward,mse.knn,msewin.lm)
+#we can get our winner KNN here.
+```
+
+#Now we headed to our last model: 
+#Penalized regression
+We also need a grid of lambda values. It is important to remember that there is no natural scale for the lambda values. I settled on this grid after some experimentation.
+
+Set up the data
+```{r}
+numPreds <- ncol(housePrices.df)-1
+data.x <- data.matrix(housePrices.df[,-(numPreds+1)])
+data.y <- data.matrix(housePrices.df[,numPreds+1])
+```
+```{r lambda}
+lambda.grid <- 10^seq(-1,2,length=100)
+```
+
+
+### Cross-validation and lambda selection
+Now we can run cross-validated lasso and look at the results. 
+```{r lasso cv}
+mod.lasso.cv <- cv.glmnet(data.x,
+                          data.y,
+                          alpha=1,
+                          lambda=lambda.grid)
+
+plot(mod.lasso.cv)
+```
+From the plot, we see both the lambda with the minimal MSE and the "One SE Rule" lambd.
+
+Use the "One  SE Rule" lambda  value since it will use fewer predictors
+```{r lambda 1se}
+##lambda.opt <- mod.lasso.cv$lambda.min
+(lambda.opt <- mod.lasso.cv$lambda.1se)
+```
+
+
+### Optimal Lasso Model
+Now let's look at which of these variables are nonzero at the optimal lambda value.
+```{r optimal lasso}
+mod.lasso.opt <- glmnet(data.x,
+                    data.y,
+                    alpha=1,
+                    lambda=lambda.opt)
+```
+
+
+Grab the coefficients and drop the constant term.
+```{r coefficients}
+coefs.lasso <- data.matrix(coefficients(mod.lasso.cv,s=lambda.opt))
+coefs.lasso <- coefs.lasso[-1] ##drop constant term
+lassoPreds <- which(coefs.lasso != 0)
+```
+
+
+
+```{r}
+id <- which(mod.lasso.cv$lambda == lambda.opt)
+(mse.lasso <- mod.lasso.cv$cvm[id])
+```
+
+```{r}
+c(mse.forward,mse.backward,mse.lasso,mse.knn,msewin.lm)
+
+```
+
+KNN won big!

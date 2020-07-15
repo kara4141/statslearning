@@ -1,0 +1,298 @@
+---
+title: "Backward Selection"
+author: "Shan Chen"
+date: "4/12/2020"
+output: html_document
+---
+
+```{r}
+suppressWarnings(library(tidyverse))
+```
+
+# Introduction
+The  selection algorithms are described in section 6.1 of ISLR. 
+
+Here, we will implement the Forward Selection Algorithm (*Algorithm 6.2*) using cross-validated MSE as the final determiner of the optimal  model. The plan, as outlined  in *Algorithm 6.2*, is relatively simple. 
+
+
+# The Data: Election Turnout Prediction
+
+The data files are related to the presidential election of 2012 (Romney vs Obama):  
+
+* countyElection.csv: For each US county, demographic data along with voter turnout rates   
+* county_facts_dictionary.csv: A data dictionary containing  descriptions of each of the demographic  fields in  countyElection.csv.
+
+
+Establish data locations and read the data.
+```{r}
+dataDir <- "/Users/shawnchen/Desktop"
+dataFile <- "CountyElection.csv"
+dictFile <- "County_Facts_Dictionary.csv"
+
+countyElection.df <- read.csv(file.path(dataDir,dataFile))
+names(countyElection.df)
+dictionary.df <-
+    read.csv(file.path(dataDir,dictFile))
+dim(countyElection.df)
+```
+What sort of predictors do  we have?
+
+Take a peek at the top  of the dicgtio
+```{r}
+head(dictionary.df,10)
+```
+and the bottom.
+```{r}
+tail(dictionary.df,10)
+```
+
+For modeling purposes, we don't need the identify fields fips (location identifier) and County. Let's take those out.
+```{r}
+
+countyIDInfo.df <- countyElection.df %>% 
+  select(fips,State)
+
+countyElection.df <- countyElection.df %>% 
+  select(-fips,-State)
+
+dictionary.df <- dictionary.df %>% 
+  filter(! column_name %in% c("fips","State"))
+```
+
+
+What do we have,  dimension-wise
+```{r}
+dim(countyElection.df)
+numPreds <- ncol(countyElection.df)-1
+```
+Now we are  ready. Let's begin by defining the relevant variables. Recall that in countyElection.df, the first column is the response (VotePerc) and the remaining  columns are the predictors.
+```{r}
+## the available and model predictors
+availPreds <- 1:numPreds
+modelPreds <- c()
+```
+Now we are ready for the main loop.  
+
+
+## Main Loop
+Note: prints some relevant information  as it goes along so you can track the progress.
+```{r Main Loop}
+## keep track of the R2 for reference
+maxR2 <- c()
+##Keep going as long as there are available predictors left
+while(length(availPreds) > 0){
+    ##add predictor which increases R^2 the most
+    ##keep track of the R^2 values for reference
+    allR2 <- c()
+    for(id in availPreds){
+      ##the augmented predictors
+      augPreds <- c(modelPreds,id)
+      ## Build the data frame with the augmented predictors 
+      data.df <- countyElection.df[,c(augPreds,numPreds+1)]
+      ##the model and its summary
+      mod.curr <- lm(VoterProp ~ .,
+                     data=data.df)
+      mod.sum <- summary(mod.curr)
+      ##grab the R^2
+      allR2 <- c(allR2,mod.sum$r.squared)
+    }
+    ##Find the index of the min R^2
+    max.id <- which.max(allR2)
+    ##get the best predictor and R^2
+    bestPred <- availPreds[max.id]
+    bestR2 <- max(allR2)
+    ##Add these into the collection
+    modelPreds <- c(modelPreds,bestPred)
+    ## remove the  bestPred from  the availPreds
+    availPreds <- setdiff(availPreds,bestPred)
+    maxR2 <- c(maxR2,bestR2)
+    ##remove bestsPred from avail
+    ## Print stuff out for debugging and attention-grabbing
+    print(sprintf("Pred Added: %s  R^2 Value: %s",bestPred,round(bestR2,3)))
+    ##print(modelPreds)
+}
+```
+The process creates an increasing  sequence  of (nested) models with increasing R^2. After a while, the increase in R^2 tails off. This is how R^2  works, it  is a non-decreasing function of the number of predictors.
+
+## MSE via Cross-validation of each model
+Out of all these models, we now want to find the "best" one. In this case, "best" is defined as having the smallest MSE, as determined by cross-validation. We expect that the model with all the predictors might be over-fitting the data. On the other  hand, the model with just one predictor doesn't have enough predictive power. Somewhere in betweeen is the best model. Let's find it.
+
+
+It will help to have a help function  to compute the cross-validated MSE.  
+```{r}
+## args: a data frame and a number of folds (default to 10).
+## ret: k-fold cross-validated MSE
+mseCV <- function(data.df,numFolds=10){
+  dataSize <- nrow(data.df)
+  folds <- sample(1:numFolds,dataSize,rep=T)
+  mse <- numeric(numFolds)
+  fold <- 5
+  for(fold in 1:numFolds){
+    train.df <- data.df[folds != fold,]
+    test.df <- data.df[folds == fold,]
+    mod <- lm(VoterProp  ~ ., 
+              data=train.df)
+    vals <- predict(mod,newdata=test.df)
+    mse[fold] <- with(test.df,mean((VoterProp-vals)^2))
+  }
+  mean(mse)
+}
+
+```
+
+
+Here's an example of how we will use this function. Suppose we  want to estimate the MSE for the model with  exactly 15 predictors.
+```{r}
+totPred <- 15
+modelPreds[1:totPred]
+data.df <- countyElection.df[, c(modelPreds[1:totPred],numPreds+1)]
+mseCV(data.df)
+```
+Ok, that was easy. Apply the process to the sequence 1,2,....numPreds.
+
+Use map_dbl to simplify the work. This means we need to build an "anonymous function" inside of map_dbl.
+
+```{r}
+allMSE <- map_dbl(1:numPreds,
+                  function(totPred) 
+                 mseCV(countyElection.df[,c(modelPreds[1:totPred],numPreds+1)]))
+
+```
+
+## Visualization
+Let's see what we have.
+
+```{r}
+data.frame(numPred=1:numPreds,
+           mse=allMSE) %>% 
+  ggplot()+
+  geom_point(aes(numPred,mse))+
+  geom_line(aes(numPred,mse))+
+  labs(title="Forward Selection: Cross-validation",
+       subtitle="Predictors selected with maximal R^2 at each  step",
+       x = "Number of Predictors",
+       y = "MSE (CV)")
+```
+It looks as if the optimal model has around 20 or fewer predictors.
+
+## Optimal Model: One Standard Error  Rule
+So how do we pick the optimal model? There are two issues in play here. First, we want to minimize MSE. Second, we want to be parsimonious, that is, we want the simplest model (fewest predictors) possible. 
+
+To balance these two competing goals, we can use the "One Standard Error Rule" which states use the simplest model within one  standard error of the minimum MSE model.  
+
+In our case, min MSE appears to be at 20 predictors. From the cross-validation, we need to get the Standard Error defined  as the variance of the MSE estimates divided by the square  root of the number of folds. Formally
+ $$SE=\sqrt{\frac{Var(MSE)}{K}}$$
+ 
+ We didn't track the SE in our original function, but we can easily modify it to compute the SE as well.
+ 
+```{r}
+## args: a data frame and a number of folds (default to 10).
+## ret: k-fold cross-validated MSE and the Standard Error
+mseCV_SE <- function(data.df,numFolds=10){
+  dataSize <- nrow(data.df)
+  folds <- sample(1:numFolds,dataSize,rep=T)
+  mse <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.df <- data.df[folds !=fold,]
+    test.df <- data.df[folds==fold,]
+    mod <- lm(VoterProp  ~ ., 
+              data=train.df)
+    vals <- predict(mod,newdata=test.df)
+    mse[fold] <- with(test.df,mean((VoterProp-vals)^2))
+  }
+  c(mean(mse),sqrt(var(mse)/numFolds))
+}
+```
+ 
+Ok, let's dig out the the smallest model within one SE of the our 
+```{r}
+(predMin <- which.min(allMSE))
+##build this model
+data.df <- countyElection.df[,c(modelPreds[1:predMin],numPreds+1)]
+## get  both the MSE  estimate and the SE
+(mseInfo <- mseCV_SE(data.df))
+```
+
+
+Now  we need to identify the smallest predictor set within one SE of the min MSE. 
+```{r}
+## add the MSE and the SE.
+mseCut <- mseInfo[1]+mseInfo[2]
+## 
+(thePreds <- (1:numPreds)[allMSE < mseCut])
+```
+We can use the predictors starting at the minimum index.
+
+```{r}
+(optNumPreds <- min(thePreds))
+(preds.forward <- modelPreds[1:optNumPreds])
+```
+The  cross-validated estimated MSE has already been computed.
+```{r}
+(forwardMSE <- allMSE[optNumPreds])
+```
+
+
+Now we  have really reduced the number of predictors and have a very reasonable MSE. Which predictors are these??
+
+#Backward selection
+```{r}
+availPreds <- 1:numPreds
+modelPreds <- c()
+while(length(availPreds) >1){
+  allR2 <- c()
+  pred <- 1
+  for(pred in availPreds){
+    testPreds <- setdiff(availPreds,pred)
+    data.df <- countyElection.df[,c(testPreds,numPreds+1)]
+    mod <- lm(VoterProp ~ ., data=data.df)
+    mod.sum <- summary(mod)
+    allR2 <- c(allR2,mod.sum$r.squared)
+  }
+  max.id <- which.max(allR2)
+  bestPred <- availPreds[max.id]
+  ##tack the best predictor on the front
+  modelPreds <- c(bestPred,modelPreds)
+  availPreds <- setdiff(availPreds,bestPred)
+  print(sprintf("Pred Added: %s  R^2 Value: %s",bestPred,round(allR2[max.id],3)))
+}
+## Tack the last one on the front
+modelPreds <- c(availPreds,modelPreds)
+# Cross-validate
+allMSE <- map_dbl(1:numPreds, function(tot) mseCV(countyElection.df[,c(modelPreds[1:tot],numPreds+1)]))
+###
+data.frame(numPreds=1:numPreds,MSE=allMSE) %>% 
+  ggplot()+
+  geom_point(aes(numPreds,MSE))+
+  geom_line(aes(numPreds,MSE))+
+  labs(title="Backward Selection: Cross-validation",
+       subtitle="Predictors selected with maximal R^2 at each  step",
+       x="Number of Predictor")
+
+## 1 SE Rule
+(predMin <- which.min(allMSE) )
+##build this model
+data.df <- countyElection.df[,c(modelPreds[1:predMin],numPreds+1)]
+## get  both the MSE  estimate and the SE
+(mseInfo <- mseCV_SE(data.df))
+
+## add the MSE and the SE.
+mseCut <- mseInfo[1]+mseInfo[2]
+## 
+(thePreds <- (1:numPreds)[allMSE < mseCut])
+# 
+(optNumPreds <- min(thePreds))
+(preds.backward <- modelPreds[1:optNumPreds])
+
+# How does this compare  to the original forward selection predictors?
+sort(preds.forward)
+sort(preds.backward)
+```
+#Comparsion 
+There is a some agreement, but usually these two sets are not fully identical. Because of the randomness of the cross-validation, the sets could change from different tries. This points out the challenge of  inding an optimal predictor set. Actually, we are finding a "good enough" predictor set which both results are pretty good as the mse approching less than 0.0002. 
+
+
+
+
+ 
+ 

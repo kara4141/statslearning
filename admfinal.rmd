@@ -1,0 +1,310 @@
+---
+title: "ADM Final, League of Legends Game Result Predication Based on First 10 Mins Data"
+author: "Shan Chen, Ken Wang"
+date: "5/17/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F) 
+suppressMessages(library(tidyverse))
+library(class)
+library(glmnet)
+library(randomForest)
+library(gbm)
+suppressMessages(library(factoextra))
+suppressMessages(library(ggrepel))
+```
+We will only use blue sides' data here to predict because the side does not affect win rate:
+```{r}
+dataDir <- "/Users/shawnchen/Desktop"
+data.df <- read.csv(file.path(dataDir,"high_diamond_ranked_10min.csv"),header=T) 
+blue.df <- data.df[,-c(22:40)]
+```
+
+# Penalized Regression
+Start with penalized regression
+
+Build the data and check the data, a pretty good break even on win rate.
+```{r}
+names(blue.df)
+with(blue.df,table(blueWins))
+numPreds <- ncol(blue.df)-1
+blue.x <- data.matrix(blue.df[,3:21])
+blue.y <- data.matrix(blue.df[,2])
+```
+
+
+```{r}
+lambda.grid <- 10^seq(-5,1,length=50)
+ridge.cv <- cv.glmnet(blue.x,blue.y,
+                      lambda=lambda.grid,
+                      family="binomial",
+                      type.measure="class",
+                      alpha=0)
+```
+
+```{r}
+plot(ridge.cv)
+```
+
+```{r}
+lambda.opt <- ridge.cv$lambda.1se
+id <- with(ridge.cv,which(lambda==lambda.opt))
+(err.ridge <- with(ridge.cv,cvm[id]))
+```
+
+```{r}
+ridge.cv$nzero[id]
+```
+
+Repeat with Lasso
+```{r}
+lasso.cv <- cv.glmnet(blue.x,blue.y,
+                      lambda=lambda.grid,
+                      family="binomial",
+                      type.measure="class",
+                      alpha=1)
+plot(lasso.cv)
+lambda.opt <- lasso.cv$lambda.1se
+id <- with(lasso.cv,which(lambda==lambda.opt))
+(err.lasso <- with(lasso.cv,cvm[id]))
+
+```
+
+While  we are hear, see how many coefficients are nonzero? Remember there are 18 predictors
+```{r}
+lasso.cv$nzero[id]
+```
+Lasso Zeroed most predictors.
+
+
+```{r}
+dim(blue.x)
+lasso.opt <- glmnet(blue.x,blue.y,
+                      lambda=lambda.opt,
+                      family="binomial",
+                      alpha=1)
+coefs <- coefficients(lasso.opt)
+lassoPreds <- which(coefs != 0)
+(lassoPreds <- lassoPreds[-1]-1)
+
+```
+```{r}
+N <- nrow(blue.df)
+train <- sample(1:N,N/2,rep=T)
+train.df <- blue.df[train,]
+test.df <- blue.df[-train,]
+```
+
+#  Boosting
+I had to explore the these parameters to find a good starting set.
+```{r}
+theDepth <- 2
+theShrinkage <- .1
+numTrees <- 500
+```
+
+Run cross-validated gbm.
+```{r}
+mod.gbm <- gbm(blueWins  ~  .,
+               data=train.df,
+               distribution="adaboost", ## <---for adaboost
+               interaction.depth = theDepth,
+               shrinkage=theShrinkage,  ##adjust to reduce alpha
+               cv.folds = 10,
+               n.trees=numTrees)
+               
+```
+
+```{r}
+gbm.perf(mod.gbm)
+```
+
+Having 108 trees seems pretty good
+```{r}
+numTreesOpt <- 108
+```
+
+```{r}
+mod.gbm <- gbm(blueWins  ~  .,
+               data=train.df,
+               distribution="adaboost",
+               shrinkage=theShrinkage,
+               n.trees=numTreesOpt,
+               interaction.depth = theDepth)
+prob.gbm <- predict(mod.gbm,
+                    newdata=test.df,
+                    n.trees=numTreesOpt,
+                    type="response")
+pred.gbm <- ifelse(prob.gbm > 0.5,1,0)
+with(test.df,table(blueWins, pred.gbm))
+(err.gbm <- with(test.df,mean(blueWins != pred.gbm)))
+```
+Ahhh error rate is still around 27%
+
+```{r}
+N <- nrow(blue.df)
+cvGBM <- function(theShrinkage,theDepth,numTrees,numFolds=10){
+  print(sprintf("Shrinkage: %s   Depth: %s: numTrees: %s",theShrinkage,theDepth,numTrees))
+  folds <-  sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  fold <- 1
+  for(fold in 1:numFolds){
+    train.df <- blue.df[folds != fold,]
+    test.df <- blue.df[folds == fold,]   
+    mod.gbm <- gbm(blueWins  ~  .,
+                   data=train.df,
+                   distribution="adaboost",
+                   shrinkage=theShrinkage,
+                   n.trees=numTreesOpt,
+                   interaction.depth = theDepth)
+    prob.gbm <- predict(mod.gbm,
+                        newdata=test.df,
+                        n.trees=numTreesOpt,
+                        type="response")
+    pred.gbm <- ifelse(prob.gbm > 0.5,1,0)
+    errs[fold] <- with(test.df,mean(blueWins != pred.gbm))
+  }
+  mean(errs)
+}
+#testing..
+cvGBM(theShrinkage,theDepth,numTreesOpt)
+```
+
+## Cross-validate on shrinkage and depth
+Create a grid of values...don't be too precise here!
+```{r}
+shrinks <- c(1,.1,.05,.01)
+depths <- c(1,2,3,4)
+cv.vals <- expand.grid(shrinks,depths)
+cv.vals
+```
+
+
+Run the cvGBM against all of these. There are 16 total so it will take few minutes.
+```{r}
+err.vals <- apply(cv.vals,1,function(row) cvGBM(row[1],row[2],numTreesOpt))
+
+```
+
+
+```{r}
+id <- which.min(err.vals)
+(best.params <- cv.vals[id,])
+(err.boost <- err.vals[id])
+```
+```{r}
+(shrinkOpt <- best.params[1])
+(depthOpt <- best.params[2])
+```
+
+Seems like we stucked on 26% precision rate :(
+
+#  KNN
+
+Check to see if the data  are scaled
+```{r}
+summary(apply(blue.x,2,mean))
+```
+Nope
+```{r}
+blue.x <- scale(blue.x)
+summary(apply(blue.x,2,mean))
+```
+Much better
+```{r}
+N <- nrow(blue.x)
+kVal <- 10
+knnERR_SE <- function(kVal,numFolds=10){
+  folds <- sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.x <- blue.x[folds != fold,] 
+    train.y <- blue.y[folds != fold]
+    test.x <- blue.x[folds == fold,] 
+    test.y <-  blue.y[folds == fold]  
+    mod.knn <- knn(train.x,test.x,train.y,k=kVal)
+    length(mod.knn)
+    length(test.y)
+    table(mod.knn,test.y)
+    errs[fold] <- mean(mod.knn != test.y)
+  }
+  c(mean(errs),sd(errs))
+}
+## just the M
+knnERR <- function(kVal,numFolds=10){ knnERR_SE(kVal,numFolds)[1]}
+
+knnERR(1)
+knnERR(4)
+knnERR(10)
+knnERR(20)
+knnERR(30)
+knnERR(40)
+```
+Explore the k values
+```{r}
+maxK <- 40
+kVals <- 1:maxK
+allErrs <- map_dbl(kVals,knnERR)
+```
+
+
+```{r}
+data.frame(k=kVals,err=allErrs) %>% 
+    ggplot()+
+    geom_point(aes(k,err))+
+  geom_smooth(aes(k,err))+
+  labs(title="KNN Errors on blue 10 mins Data")
+
+  
+```
+
+They are quite the same, still monotonicly decaying about 35 is pretty good
+
+```{r}
+(err.knn <-knnERR(35)[1])
+```
+
+This error rate is not competitive with what we saw earlier.
+```{r}
+c(err.ridge, err.lasso,err.knn,err.boost)
+```
+
+They are quite similar, adaboosting and lasso won a bit by 1~2% comparing to the other two.
+#Lets see what can we get from PCA and Clustering:
+```{r}
+dataname <- blue.df[1,3:21]
+bsdata.df <- data.frame(scale(blue.df[,-1]))
+colMeans(bsdata.df)
+```
+quite small, so zero :)
+
+```{r}
+K <- 3
+mod.km <- kmeans(bsdata.df,K,nstart=25)
+mod.km$cluster
+```
+
+
+```{r}
+mod.pc <- prcomp(bsdata.df)
+fviz_pca_var(mod.pc)
+```
+
+
+```{r}
+rot.mat <- mod.pc$rotation
+dim(rot.mat)
+```
+
+
+```{r}
+bd.mat <- as.matrix(bsdata.df)
+bd.rot <- bd.mat%*% rot.mat
+bdRot.df <- data.frame(bd.rot)
+mod.km2 <- kmeans(bdRot.df,K,nstart=25)
+table(mod.km$cluster,mod.km2$cluster)
+```
+
+

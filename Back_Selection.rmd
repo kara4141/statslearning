@@ -1,0 +1,155 @@
+---
+title: "Backward Selection"
+author: "Shan Chen"
+date: "4/12/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+suppressWarnings(library(tidyverse))
+```
+
+```{r}
+dataDir <- "/Users/shawnchen/Desktop"
+dataFile <- "CountyElection.csv"
+dictFile <- "County_Facts_Dictionary.csv"
+
+countyElection.df <- read.csv(file.path(dataDir,dataFile))
+names(countyElection.df)
+dictionary.df <-
+    read.csv(file.path(dataDir,dictFile))
+dim(countyElection.df)
+
+numPreds <- ncol(countyElection.df)-1
+```
+Forward slection data:
+```{r}
+## keep track of the R2 for reference
+maxR2 <- c()
+##Keep going as long as there are available predictors left
+while(length(availPreds) > 0){
+    ##add predictor which increases R^2 the most
+    ##keep track of the R^2 values for reference
+    allR2 <- c()
+    for(id in availPreds){
+      ##the augmented predictors
+      augPreds <- c(modelPreds,id)
+      ## Build the data frame with the augmented predictors 
+      data.df <- countyElection.df[,c(augPreds,numPreds+1)]
+      ##the model and its summary
+      mod.curr <- lm(VoterProp ~ .,
+                     data=data.df)
+      mod.sum <- summary(mod.curr)
+      ##grab the R^2
+      allR2 <- c(allR2,mod.sum$r.squared)
+    }
+    ##Find the index of the min R^2
+    max.id <- which.max(allR2)
+    ##get the best predictor and R^2
+    bestPred <- availPreds[max.id]
+    bestR2 <- max(allR2)
+    ##Add these into the collection
+    modelPreds <- c(modelPreds,bestPred)
+    ## remove the  bestPred from  the availPreds
+    availPreds <- setdiff(availPreds,bestPred)
+    maxR2 <- c(maxR2,bestR2)
+    ##remove bestsPred from avail
+    ## Print stuff out for debugging and attention-grabbing
+    print(sprintf("Pred Added: %s  R^2 Value: %s",bestPred,round(bestR2,3)))
+    ##print(modelPreds)
+}
+```
+
+Here's an example of how we will use this function. Suppose we  want to estimate the MSE for the model with  exactly 15 predictors.
+```{r}
+totPred <- 15
+modelPreds[1:totPred]
+data.df <- countyElection.df[, c(modelPreds[1:totPred],numPreds+1)]
+mseCV(data.df)
+```
+Ok, that was easy. Apply the process to the sequence 1,2,....numPreds.
+
+Use map_dbl to simplify the work. This means we need to build an "anonymous function" inside of map_dbl.
+
+```{r}
+allMSE <- map_dbl(1:numPreds,
+                  function(totPred) 
+                 mseCV(countyElection.df[,c(modelPreds[1:totPred],numPreds+1)]))
+
+```
+
+## Visualization
+Let's see what we have.
+
+```{r}
+data.frame(numPred=1:numPreds,
+           mse=allMSE) %>% 
+  ggplot()+
+  geom_point(aes(numPred,mse))+
+  geom_line(aes(numPred,mse))+
+  labs(title="Forward Selection: Cross-validation",
+       subtitle="Predictors selected with maximal R^2 at each  step",
+       x = "Number of Predictors",
+       y = "MSE (CV)")
+```
+Backward:
+```{r}
+availPreds <- 1:numPreds
+modelPreds <- c()
+while(length(availPreds) >1){
+   allR2 <- c()
+   pred <- 1
+   for(pred in availPreds){
+     testPreds <- setdiff(availPreds,pred)
+     data.df <- countyElection.df[,c(testPreds,numPreds+1)]
+     mod <- lm(VoterProp ~ ., data=data.df)
+     mod.sum <- summary(mod)
+     allR2 <- c(allR2,mod.sum$r.squared)
+   }
+   max.id <- which.max(allR2)
+   bestPred <- availPreds[max.id]
+   ##tack the best predictor on the front
+   modelPreds <- c(bestPred,modelPreds)
+   availPreds <- setdiff(availPreds,bestPred)
+   print(sprintf("Pred Added: %s  R^2 Value: %s",bestPred,round(allR2[max.id],3)))
+ }
+ ## Tack the last one on the front
+ modelPreds <- c(availPreds,modelPreds)
+## Cross-validate
+ allMSE <- map_dbl(1:numPreds, function(tot) mseCV(countyElection.df[,c(modelPreds[1:tot],numPreds+1)]))
+# ###
+ data.frame(numPreds=1:numPreds,MSE=allMSE) %>%
+   ggplot()+
+   geom_point(aes(numPreds,MSE))+
+   geom_line(aes(numPreds,MSE))+
+   labs(title="Backward Selection: Cross-validation",
+        subtitle="Predictors selected with maximal R^2 at each  step",
+        x="Number of Predictor")
+
+## 1 SE Rule
+ (predMin <- which.min(allMSE) )
+# ##build this model
+ data.df <- countyElection.df[,c(modelPreds[1:predMin],numPreds+1)]
+# ## get  both the MSE  estimate and the SE
+ (mseInfo <- mseCV_SE(data.df))
+#
+# ## add the MSE and the SE.
+ mseCut <- mseInfo[1]+mseInfo[2]
+# ##
+ (thePreds <- (1:numPreds)[allMSE < mseCut])
+#
+ (optNumPreds <- min(thePreds))
+ (preds.backward <- modelPreds[1:optNumPreds])
+
+## How does this compare  to the original forward selection predictors?
+ sort(preds.forward)
+ sort(preds.backward)
+
+#
+# There is a some agreement, but usually these two sets are not identical. In  fact, due to the randomness of the cross-validation, the sets could change from run  to run. This points out the challenge of  inding an optimal predictor set. Actually, we are finding a "good enough" predictor set.
+
+```

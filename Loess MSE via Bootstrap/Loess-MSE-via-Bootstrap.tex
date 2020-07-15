@@ -1,0 +1,2067 @@
+\PassOptionsToPackage{unicode=true}{hyperref} % options for packages loaded elsewhere
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provides euro and other symbols
+\else % if luatex or xelatex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage[]{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\usepackage{hyperref}
+\hypersetup{
+            pdftitle={Assignment 1: Loess MSE via Bootstrap},
+            pdfauthor={Shan Chen},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage[margin=1in]{geometry}
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+% set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+
+
+\title{Assignment 1: Loess MSE via Bootstrap}
+\author{Shan Chen}
+\date{2/21/2020}
+
+\begin{document}
+\maketitle
+
+\hypertarget{instructions}{%
+\section{Instructions}\label{instructions}}
+
+Recall we used a fixed data set (data.df) and then bootstrapped it to
+find a MSE for the loess model. In the case in class, we used a fixed
+value of span (0.75 or so).
+
+Redo the bootstrapped MSE calculation with values of span in the
+interval (.1,3). Can you settle on a value of the span that minimizes
+the MSE?
+
+Plan: It might help to write a helper function that will compute the
+estimated (mean) MSE and variability (variance or sd) as a function of
+the span. From these, create a plot that shows MSE as a function of
+span, along with some indication of the variability of the estimate. For
+example, you should plot mse, mse+2\emph{sd, mse-2}sd all as a function
+of span.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{library}\NormalTok{(tidyverse)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## -- Attaching packages ---------------------------------- tidyverse 1.3.0 --
+\end{verbatim}
+
+\begin{verbatim}
+## v ggplot2 3.2.1     v purrr   0.3.3
+## v tibble  2.1.3     v dplyr   0.8.4
+## v tidyr   1.0.2     v stringr 1.4.0
+## v readr   1.3.1     v forcats 0.4.0
+\end{verbatim}
+
+\begin{verbatim}
+## -- Conflicts ------------------------------------- tidyverse_conflicts() --
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()
+\end{verbatim}
+
+Recall we used a fixed data set (data.df) and then bootstrapped it to
+find a MSE for the loess model. In the case in class, we used a fixed
+value of span (0.75 or so).
+
+Replace the underlying function f(x) (=b0+b1*x) with
+
+f(x)= sin(x)-3\emph{cos(3}x)
+
+Generate the data as before\ldots{}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{b0 <-}\StringTok{ }\DecValTok{1}
+\NormalTok{b1 <-}\StringTok{ }\DecValTok{3}
+\CommentTok{##f <- function(x) b0+b1*x}
+\NormalTok{f <-}\StringTok{ }\ControlFlowTok{function}\NormalTok{(x) }\KeywordTok{sin}\NormalTok{(x)}\OperatorTok{-}\DecValTok{3}\OperatorTok{*}\KeywordTok{cos}\NormalTok{(}\DecValTok{3}\OperatorTok{*}\NormalTok{x)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{buildData <-}\StringTok{ }\ControlFlowTok{function}\NormalTok{(N,b0,b1,sigma)\{}
+\NormalTok{  x <-}\StringTok{ }\KeywordTok{rnorm}\NormalTok{(N,}\DecValTok{0}\NormalTok{,}\DecValTok{1}\NormalTok{)}
+\NormalTok{  y <-}\KeywordTok{f}\NormalTok{(x)}\OperatorTok{+}\KeywordTok{rnorm}\NormalTok{(N,}\DecValTok{0}\NormalTok{,sigma)}
+  \KeywordTok{data.frame}\NormalTok{(x,y)}
+\NormalTok{\}}
+
+\NormalTok{N <-}\StringTok{ }\DecValTok{50}  \CommentTok{##sample size}
+\NormalTok{sigma <-}\StringTok{ }\FloatTok{2.5}
+\NormalTok{data.df <-}\StringTok{ }\KeywordTok{buildData}\NormalTok{(N,b0,b1,sigma)}
+\end{Highlighting}
+\end{Shaded}
+
+Display data
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{ggplot}\NormalTok{(data.df)}\OperatorTok{+}
+\StringTok{    }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(x,y))}\OperatorTok{+}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{title=}\StringTok{"Generated Data from f <- function(x) sin(x)-3*cos(3*x)"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Loess-MSE-via-Bootstrap_files/figure-latex/unnamed-chunk-4-1.pdf}
+\#\# Loess model
+
+First build and predict with a loess model to make sure we know how this
+works. First with a fix span value of 0.25
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{theSpan <-}\StringTok{ }\FloatTok{.25}
+\CommentTok{##theSpan <- 100}
+\NormalTok{mod.lo <-}\StringTok{ }\KeywordTok{loess}\NormalTok{(y}\OperatorTok{~}\NormalTok{x,}\DataTypeTok{data=}\NormalTok{data.df,}\DataTypeTok{span=}\NormalTok{theSpan) }\CommentTok{##set up loess}
+\NormalTok{data.df}\OperatorTok{$}\NormalTok{pred <-}\StringTok{ }\KeywordTok{predict}\NormalTok{(mod.lo)}
+\NormalTok{mse <-}\StringTok{ }\KeywordTok{with}\NormalTok{(data.df,}\KeywordTok{mean}\NormalTok{((y}\OperatorTok{-}\NormalTok{pred)}\OperatorTok{^}\DecValTok{2}\NormalTok{)) }\CommentTok{#calculate mse}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{data.df }\OperatorTok{%>%}\StringTok{ }
+\KeywordTok{ggplot}\NormalTok{()}\OperatorTok{+}
+\StringTok{    }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(x,y),}\DataTypeTok{color=}\StringTok{"blue"}\NormalTok{)}\OperatorTok{+}
+\StringTok{      }\KeywordTok{geom_line}\NormalTok{(}\KeywordTok{aes}\NormalTok{(x,pred),}\DataTypeTok{color=}\StringTok{"red"}\NormalTok{)}\OperatorTok{+}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{title=}\StringTok{"Synthetic Data from f <- function(x) sin(x)-3*cos(3*x)"}\NormalTok{,}
+       \DataTypeTok{subtitle=}\KeywordTok{sprintf}\NormalTok{(}\StringTok{"With Loess  (span = %s): MSE=%s"}\NormalTok{, theSpan,}\KeywordTok{round}\NormalTok{(mse,}\DecValTok{3}\NormalTok{)))}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Loess-MSE-via-Bootstrap_files/figure-latex/unnamed-chunk-6-1.pdf}
+
+\hypertarget{bootstrapping-and-generate-new-testing-data}{%
+\section{Bootstrapping and generate new testing
+data}\label{bootstrapping-and-generate-new-testing-data}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{theSpan <-}\StringTok{ }\FloatTok{.15}
+\NormalTok{N <-}\StringTok{ }\KeywordTok{nrow}\NormalTok{(data.df)}
+\NormalTok{bootSample <-}\StringTok{ }\KeywordTok{sample}\NormalTok{(}\DecValTok{1}\OperatorTok{:}\NormalTok{N,N,}\DataTypeTok{rep=}\NormalTok{T)}
+\NormalTok{boot.df <-}\StringTok{ }\NormalTok{data.df[bootSample,]}
+\CommentTok{#see test data}
+\KeywordTok{ggplot}\NormalTok{(boot.df)}\OperatorTok{+}
+\StringTok{    }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(x,y))}\OperatorTok{+}
+\StringTok{  }\KeywordTok{labs}\NormalTok{(}\DataTypeTok{title=}\StringTok{"Generated test Data"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Loess-MSE-via-Bootstrap_files/figure-latex/unnamed-chunk-7-1.pdf}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{#modeling and calculating loses}
+\NormalTok{mod.lo <-}\StringTok{ }\KeywordTok{loess}\NormalTok{(y}\OperatorTok{~}\NormalTok{x,}\DataTypeTok{data=}\NormalTok{data.df,}\DataTypeTok{span=}\NormalTok{theSpan)}
+\NormalTok{boot.df}\OperatorTok{$}\NormalTok{pred <-}\StringTok{ }\KeywordTok{predict}\NormalTok{(mod.lo,}\DataTypeTok{newdata=}\NormalTok{boot.df)}
+\NormalTok{mse.boot <-}\StringTok{ }\KeywordTok{with}\NormalTok{(boot.df,}\KeywordTok{mean}\NormalTok{((y}\OperatorTok{-}\NormalTok{pred)}\OperatorTok{^}\DecValTok{2}\NormalTok{))}
+\KeywordTok{c}\NormalTok{(mse,mse.boot)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 4.198198 2.398754
+\end{verbatim}
+
+These two values should be close. The mse.boot has more validity since
+we predicted on a different data set from the one on which the model was
+built. \#\#But I do not see really close mse honestly.
+
+\hypertarget{repeat-the-bootstrapping-100-times}{%
+\subsection{Repeat the Bootstrapping 100
+times}\label{repeat-the-bootstrapping-100-times}}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{numBoots <-}\StringTok{ }\DecValTok{100}
+\NormalTok{mseVals <-}\StringTok{ }\KeywordTok{array}\NormalTok{(}\KeywordTok{numeric}\NormalTok{(}\DecValTok{0}\NormalTok{),numBoots)}
+\CommentTok{### }
+\ControlFlowTok{for}\NormalTok{(m }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\NormalTok{numBoots)\{}
+  \CommentTok{## training data}
+\NormalTok{ bootSample <-}\StringTok{ }\KeywordTok{sample}\NormalTok{(}\DecValTok{1}\OperatorTok{:}\NormalTok{N,N,}\DataTypeTok{rep=}\NormalTok{T)}
+\NormalTok{ train.df <-}\StringTok{ }\NormalTok{data.df[bootSample,] }
+ \CommentTok{## testing data}
+\NormalTok{ bootSample <-}\StringTok{ }\KeywordTok{sample}\NormalTok{(}\DecValTok{1}\OperatorTok{:}\NormalTok{N,N,}\DataTypeTok{rep=}\NormalTok{T)}
+\NormalTok{ test.df <-}\StringTok{ }\NormalTok{data.df[bootSample,] }
+ \CommentTok{##model and predict}
+\NormalTok{ mod.lo <-}\StringTok{ }\KeywordTok{loess}\NormalTok{(y}\OperatorTok{~}\NormalTok{x,}\DataTypeTok{data=}\NormalTok{train.df,}\DataTypeTok{span=}\NormalTok{theSpan)}
+\NormalTok{ boot.df}\OperatorTok{$}\NormalTok{pred <-}\StringTok{ }\KeywordTok{predict}\NormalTok{(mod.lo,}\DataTypeTok{newdata=}\NormalTok{test.df)}
+ \CommentTok{##save the mse values}
+\NormalTok{ mseVals[m] <-}\StringTok{ }\KeywordTok{with}\NormalTok{(test.df,}\KeywordTok{mean}\NormalTok{((y}\OperatorTok{-}\NormalTok{pred)}\OperatorTok{^}\DecValTok{2}\NormalTok{))}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.58456
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0047633
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.73529
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.3549
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 5.2183e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0092226
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.4463
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.68104
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 9.6686e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.23169
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.4476
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.24895
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0519
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.4476
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.96033
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.4353e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.030415
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.62946
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.14088
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 9.1537e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.011398
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -1.3279
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.15935
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.030415
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.85528
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.212
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 7.2983e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.025478
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.4476
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.24895
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.34171
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.48858
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.21445
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 4.444e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0051205
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.4476
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.24895
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0519
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.47264
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.092246
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.8505e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.056641
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.5644
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.22732
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.019884
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -1.3668
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.21482
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.025878
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.48534
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.082173
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.1775
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.059459
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 7.6502e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.62946
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.14088
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 7.2483e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0035353
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.64328
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.063883
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 5.1934e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0018367
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8213
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.4842
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 3.6661e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.016135
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.38039
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.078066
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.010712
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.2854
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0049477
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.45846
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.01418
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 2.9718e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.00045483
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.27413
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.18933
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.7919e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0084573
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.2854
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.00044212
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.4476
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.24895
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0022975
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.85528
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.12702
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.5209e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0073752
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.48858
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.034772
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 2.472e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0084573
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.3371
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.16194
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.45846
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.01418
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.00045483
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.3234
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.068204
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.087716
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.096035
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 5.3492e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0051212
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.2854
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.020024
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.028961
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.020642
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0001737
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.25997
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.12042
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 5.5128e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.010439
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.015781
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.079025
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.7444e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.013867
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.7266
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.21747
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.047293
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -1.152
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.20793
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.030415
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.85528
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.12702
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.9175e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.011236
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.063244
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.071563
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 7.3425e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0092226
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.4453
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.68004
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0015003
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.45846
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.01418
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.00045483
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.25997
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.17226
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 8.5783e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.029961
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.46695
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.12127
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 8.7465e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0049477
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.2655
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.77826
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.50605
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.38039
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.07092
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.00045483
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.39661
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.07034
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.087716
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.11668
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 6.7084e-18
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.25997
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.12042
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0145
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.73529
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.092012
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 4.1591e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.73529
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.092012
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 4.2307e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.056655
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.34568
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.071558
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0051205
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.85528
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.12702
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 7.8354e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0084662
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.72825
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.084972
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.2327e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.015905
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.39661
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.091964
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.020024
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.27822
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.17309
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 4.3365e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.044942
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.084797
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.055837
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.014396
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.0714
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.064
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0012531
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.054515
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.025555
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.077264
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -1.3668
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.39841
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 8.6892e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.18097
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8213
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.32226
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.091362
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -1.5024
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.35042
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0036822
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.78647
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0015003
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.25997
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.17226
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.2612e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.7266
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.21747
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.1932e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.1124
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.62225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.042857
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.1135e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.006245
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.25997
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.19848
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 4.5279e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0051205
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.5569
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.31897
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 9.462e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.056655
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -1.7652
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.43731
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -1.3279
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.15935
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.2131e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.09042
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.73529
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.11304
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 4.8515e-18
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0015003
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.8225
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.48534
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.3978e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.21548
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.0074
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.11065
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 7.3135e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.29506
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -2.4463
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.68104
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.3969e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.19124
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.0083186
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.020642
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.0355e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0072202
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.39661
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.07034
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 4.5585e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0049477
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 0.85528
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.11998
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.0074
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.028601
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.00081801
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.3371
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.16194
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 7.5737e-17
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.5633
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.026243
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 0
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 5.6661e-05
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at 1.118
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.059459
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 6.6969e-18
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.0051212
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : pseudoinverse used at -0.39661
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : neighborhood radius 0.07034
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : reciprocal condition number 1.7989e-16
+\end{verbatim}
+
+\begin{verbatim}
+## Warning in simpleLoess(y, x, w, span, degree = degree, parametric =
+## parametric, : There are other near singularities as well. 0.014707
+\end{verbatim}
+
+Now use the mean and standard deviation as a guage of the MSE estimate.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{c}\NormalTok{(}\KeywordTok{mean}\NormalTok{(mseVals),}\KeywordTok{sd}\NormalTok{(mseVals))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 4.1836325 0.8705523
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{mseFunc <-}\StringTok{ }\ControlFlowTok{function}\NormalTok{(theSpan,numBoots)\{}
+\NormalTok{  mseVals <-}\StringTok{ }\KeywordTok{array}\NormalTok{(}\KeywordTok{numeric}\NormalTok{(}\DecValTok{0}\NormalTok{),numBoots)}
+  \CommentTok{### }
+\NormalTok{  m <-}\StringTok{ }\DecValTok{1}
+  \ControlFlowTok{for}\NormalTok{(m }\ControlFlowTok{in} \DecValTok{1}\OperatorTok{:}\NormalTok{numBoots)\{}
+    \CommentTok{## bootstrap for training data}
+\NormalTok{    bootSample <-}\StringTok{ }\KeywordTok{sample}\NormalTok{(}\DecValTok{1}\OperatorTok{:}\NormalTok{N,N,}\DataTypeTok{rep=}\NormalTok{T)}
+\NormalTok{    train.df <-}\StringTok{ }\NormalTok{data.df[bootSample,] }
+
+    \CommentTok{## bootstrap again for testing data}
+\NormalTok{    bootSample <-}\StringTok{ }\KeywordTok{sample}\NormalTok{(}\DecValTok{1}\OperatorTok{:}\NormalTok{N,N,}\DataTypeTok{rep=}\NormalTok{T)}
+\NormalTok{    test.df <-}\StringTok{ }\NormalTok{data.df[bootSample,] }
+    \CommentTok{##model and predict}
+\NormalTok{    mod.lo <-}\StringTok{ }\KeywordTok{loess}\NormalTok{(y}\OperatorTok{~}\NormalTok{x,}\DataTypeTok{data=}\NormalTok{train.df,}\DataTypeTok{span=}\NormalTok{theSpan)}
+\NormalTok{    test.df}\OperatorTok{$}\NormalTok{pred <-}\StringTok{ }\KeywordTok{predict}\NormalTok{(mod.lo,}\DataTypeTok{newdata=}\NormalTok{test.df)}
+\NormalTok{    test.df}\OperatorTok{$}\NormalTok{y}
+    \CommentTok{##save the mse values}
+\NormalTok{    mseVals[m] <-}\StringTok{ }\KeywordTok{with}\NormalTok{(test.df,}\KeywordTok{mean}\NormalTok{((y}\OperatorTok{-}\NormalTok{pred)}\OperatorTok{^}\DecValTok{2}\NormalTok{,}\DataTypeTok{na.rm=}\NormalTok{T))}
+\NormalTok{  \} }
+  \CommentTok{# Return the mean and sd of the mseVals}
+  \KeywordTok{c}\NormalTok{(}\KeywordTok{mean}\NormalTok{(mseVals),}\KeywordTok{sd}\NormalTok{(mseVals))}
+\NormalTok{  \}}
+\end{Highlighting}
+\end{Shaded}
+
+See result
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{mseFunc}\NormalTok{(}\DecValTok{5}\NormalTok{,}\DecValTok{2}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 13.55535  1.75741
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{mseFunc}\NormalTok{(.}\DecValTok{3}\NormalTok{,}\DecValTok{200}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 5.758673 1.815077
+\end{verbatim}
+
+\hypertarget{mse-as-a-function-of-span}{%
+\subsection{MSE as a function of span}\label{mse-as-a-function-of-span}}
+
+Now we are ready to put all this together and plot mse (+/- 2*standard
+deviation).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{numSpans <-}\StringTok{ }\DecValTok{100}
+\NormalTok{numBoots <-}\StringTok{ }\DecValTok{200}
+\NormalTok{minSpan <-}\StringTok{ }\FloatTok{0.25}
+\NormalTok{maxSpan <-}\StringTok{ }\FloatTok{2.0}
+\NormalTok{spanVals <-}\StringTok{ }\KeywordTok{seq}\NormalTok{(minSpan,maxSpan,}\DataTypeTok{length=}\NormalTok{numSpans)}
+\CommentTok{## store the mean and standard deviation of the mse for each spanVal}
+\NormalTok{spanMSEVals <-}\StringTok{ }\KeywordTok{matrix}\NormalTok{(}\DataTypeTok{nrow=}\NormalTok{numSpans,}\DataTypeTok{ncol=}\DecValTok{2}\NormalTok{)}
+\NormalTok{k <-}\StringTok{ }\DecValTok{1}
+\ControlFlowTok{for}\NormalTok{(theSpan }\ControlFlowTok{in}\NormalTok{ spanVals)\{}
+  
+\NormalTok{  spanMSEVals[k,] <-}\StringTok{ }\KeywordTok{mseFunc}\NormalTok{(theSpan,numBoots)}
+  \KeywordTok{print}\NormalTok{(}\KeywordTok{c}\NormalTok{(theSpan,spanMSEVals[k,}\DecValTok{1}\NormalTok{]))}
+\NormalTok{  k <-}\StringTok{ }\NormalTok{k}\OperatorTok{+}\DecValTok{1}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.250000 6.265638
+## [1] 0.2676768 5.8031339
+## [1] 0.2853535 5.6714599
+## [1] 0.3030303 5.7568714
+## [1] 0.3207071 5.6798593
+## [1] 0.3383838 5.8543315
+## [1] 0.3560606 5.8532730
+## [1] 0.3737374 5.8461285
+## [1] 0.3914141 5.7712836
+## [1] 0.4090909 5.7714477
+## [1] 0.4267677 6.0489955
+## [1] 0.4444444 5.9185292
+## [1] 0.4621212 6.0136478
+## [1] 0.479798 6.154632
+## [1] 0.4974747 5.8815056
+## [1] 0.5151515 6.0728598
+## [1] 0.5328283 5.9640229
+## [1] 0.5505051 6.2486959
+## [1] 0.5681818 5.9840263
+## [1] 0.5858586 6.0215705
+## [1] 0.6035354 6.1024016
+## [1] 0.6212121 6.2683013
+## [1] 0.6388889 6.0274822
+## [1] 0.6565657 6.1324549
+## [1] 0.6742424 6.2852148
+## [1] 0.6919192 6.4717495
+## [1] 0.709596 6.423188
+## [1] 0.7272727 6.3759124
+## [1] 0.7449495 6.5597634
+## [1] 0.7626263 6.6878133
+## [1] 0.780303 6.915291
+## [1] 0.7979798 6.9737772
+## [1] 0.8156566 7.0257477
+## [1] 0.8333333 7.4577460
+## [1] 0.8510101 7.4617762
+## [1] 0.8686869 7.8990504
+## [1] 0.8863636 8.1932404
+## [1] 0.9040404 8.2850380
+## [1] 0.9217172 8.5612547
+## [1] 0.9393939 8.6897855
+## [1] 0.9570707 8.9073902
+## [1] 0.9747475 9.4478150
+## [1]  0.9924242 10.3387169
+## [1] 1.010101 9.949149
+## [1]  1.027778 10.057752
+## [1]  1.045455 10.583949
+## [1]  1.063131 10.557924
+## [1]  1.080808 10.088460
+## [1]  1.098485 10.275339
+## [1]  1.116162 10.487727
+## [1]  1.133838 10.358155
+## [1]  1.151515 10.456319
+## [1]  1.169192 10.223832
+## [1]  1.186869 10.669379
+## [1]  1.204545 10.546792
+## [1]  1.222222 10.534232
+## [1]  1.239899 10.452463
+## [1]  1.257576 10.497595
+## [1]  1.275253 10.569202
+## [1]  1.292929 10.511894
+## [1]  1.310606 10.677173
+## [1]  1.328283 10.778798
+## [1]  1.34596 10.81804
+## [1]  1.363636 10.558247
+## [1]  1.381313 10.912008
+## [1]  1.39899 10.72224
+## [1]  1.416667 10.708265
+## [1]  1.434343 10.787409
+## [1]  1.45202 10.90354
+## [1]  1.469697 10.736990
+## [1]  1.487374 10.981519
+## [1]  1.505051 10.582172
+## [1]  1.522727 10.844538
+## [1]  1.540404 10.818385
+## [1]  1.558081 10.817884
+## [1]  1.575758 10.858794
+## [1]  1.593434 10.705315
+## [1]  1.611111 10.454876
+## [1]  1.628788 10.985586
+## [1]  1.646465 10.926419
+## [1]  1.664141 10.844250
+## [1]  1.681818 10.824461
+## [1]  1.699495 10.641396
+## [1]  1.717172 10.799331
+## [1]  1.734848 10.601380
+## [1]  1.752525 10.815447
+## [1]  1.770202 10.868795
+## [1]  1.787879 10.905252
+## [1]  1.805556 10.711250
+## [1]  1.823232 10.902633
+## [1]  1.840909 10.792635
+## [1]  1.858586 10.772897
+## [1]  1.876263 10.864659
+## [1]  1.893939 10.839914
+## [1]  1.911616 10.695602
+## [1]  1.929293 10.922046
+## [1]  1.94697 10.68323
+## [1]  1.964646 10.436270
+## [1]  1.982323 10.786105
+## [1]  2.00000 11.04415
+\end{verbatim}
+
+Display result
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data.frame}\NormalTok{(}\DataTypeTok{span=}\NormalTok{spanVals,}\DataTypeTok{mse=}\NormalTok{spanMSEVals[,}\DecValTok{1}\NormalTok{],}\DataTypeTok{sdev=}\NormalTok{spanMSEVals[,}\DecValTok{2}\NormalTok{]) }\OperatorTok{%>%}\StringTok{ }
+\StringTok{  }\KeywordTok{ggplot}\NormalTok{()}\OperatorTok{+}
+\StringTok{  }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(span,mse),}\DataTypeTok{color=}\StringTok{"blue"}\NormalTok{)}\OperatorTok{+}
+\StringTok{    }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(span,mse}\OperatorTok{+}\NormalTok{sdev),}\DataTypeTok{color=}\StringTok{"red"}\NormalTok{)}\OperatorTok{+}
+\StringTok{      }\KeywordTok{geom_point}\NormalTok{(}\KeywordTok{aes}\NormalTok{(span,mse}\OperatorTok{-}\NormalTok{sdev),}\DataTypeTok{color=}\StringTok{"red"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\includegraphics{Loess-MSE-via-Bootstrap_files/figure-latex/unnamed-chunk-14-1.pdf}
+
+\end{document}

@@ -1,0 +1,136 @@
+---
+title: "Linear/Quadratic Discriminant Analysis"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+## Introduction
+
+
+Let's compute some LDA/QDA classifiers and compare with the other classifiers we've worked with.
+
+
+## Set up
+
+First, load the libraries.
+
+```{r}
+library(tidyverse)
+library(MASS) ## for lda
+library(glmnet)
+```
+## Auto Data
+Let's use the ISLR Auto data. As described in the test, we want to model mpg as a function of horsepower.
+
+Get the data...
+```{r}
+##
+library(ISLR)
+data(Auto)
+```
+
+You might want to  take a quick peek at the data. We only want the mpg and horsepower fields, so let's clean it up a bit.
+head(Auto)
+```{r}
+auto.df <- Auto %>%
+  dplyr::select(mpg,horsepower)
+```
+
+What are we looking at here?
+```{r}
+auto.df %>%
+  ggplot() +
+  geom_point(aes(horsepower,mpg))
+```
+```{r}
+buildFormAuto <- function(degMax){
+ form <- "mpg ~ horsepower"
+ if(degMax==1)
+   return(form)
+  for(deg in 2:degMax){
+    form <- paste(form,sprintf("+I(horsepower^%s)",deg),sep=" + ")
+  }
+ form
+}
+buildFormAuto(3)
+```
+
+## Assignment 1: Figure 5.4
+
+Build reasonable replications of the two graphs in Figure 5.4, page 180  of ISLR. For the right-hand graph, start by just producing one 10-Fold plot. If that works, think about how  to layer nine of them on top of each other!
+
+What does the result tell you about the best degree to use  in a linear model (ie. in lm) in orger to predict  mpg as a function  of horsepower?
+
+Hint: After you get an idea of how  to do this, you might want to eventually to build a simple function  that takes a value of the  degree and returns the CV  estimate of the  error (for both LOOCV and k-Fold).
+
+```{r}
+compMSEdegree <- function(deg){
+  (form <- buildFormAuto(deg))
+  n <- nrow (auto.df)
+  numFolds <- 10
+  msevals <- numeric(numFolds)
+  folds <- sample(1:numFolds, n , rep=T)
+  for(fold in 1:numFolds){
+    train.df <- auto.df[folds != fold,]
+    test.df <- auto.df[folds == fold,]
+    mod <- lm(formula(form), data = train.df)
+    pred <- predict(mod, newdata = test.df)
+    msevals[fold] <- with(test.df, mean((mpg-pred)^2))
+  }
+  mean(msevals)
+}  
+  compMSEdegree(7)
+```
+
+##plot:
+
+```{r} 
+degs <- 1:10
+errs <- map_dbl(degs,compMSEdegree)
+
+plot (errs)
+
+data.frame(deg=degs, err=errs) %>%
+  ggplot()+
+  geom_point(aes(deg,err))+
+  geom_line(aes(deg,err))
+```
+#cross validation
+```{r}
+numRuns <- 9
+errsDegs <- matrix(nrow=10,
+ncol=numRuns)
+##Here we go
+for(run in 1:numRuns){
+errsDegs[,run] <- map_dbl(degs,compMSEdegree)
+}
+```
+put into dataframe
+```{r}
+errsDegs.df <- data.frame( errsDegs)
+##assign names
+names(errsDegs.df) <- paste0("run",1:numRuns)
+##add degrees
+errsDegs.df$deg <- degs
+```
+plot!
+```{r}
+errsDegs.df %>%
+  gather(run,err,run1:run9) %>%
+  ggplot()+
+  geom_point(aes(deg,err,color=run))+
+  geom_line(aes(deg,err,color=run))+
+  scale_x_continuous(breaks=1:10)+
+  labs(title="Cross Validation of MSE as function of degree",
+       subtitle="Nine different cross validations",
+       x="Degee",y="MSE")+
+  guides(color=FALSE)
+```
+
+```{r}
+
+```
+
+

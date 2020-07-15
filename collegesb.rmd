@@ -1,0 +1,149 @@
+---
+title: "College Scoreboard"
+author: "Shan Chen"
+date: "5/3/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = FALSE)
+suppressMessages(library(tidyverse))
+suppressMessages(library(ggrepel))
+suppressMessages(library(MASS))
+suppressMessages(library(factoextra))
+```
+
+#Former results: 
+# Setup
+Load in some synthetic data so use with Decision Trees.
+```{r}
+data.df <- read.csv("Colleges2015.csv")
+dim(data.df)
+numCol <- ncol(data.df)
+datascore.df <- data.df[,1:15]
+schoolNames <- data.df[,1]
+eventNames <- colnames(data.df)
+data.mat <- data.matrix(datascore.df)
+rownames(data.mat) <- schoolNames
+mod.pca <- prcomp(data.mat,scale=T)
+summary(mod.pca)
+```
+As we can see from summary, the first two composes about 60% of the Variances.
+```{r}
+biplot(mod.pca)
+```
+
+### Building a better  biplot
+Pull off the rotated scores. These are the points in the biplot. 
+```{r}
+scoresRotated <- mod.pca$x
+rotation.mat <- mod.pca$rotation
+```
+
+Put the PCA info into data frames
+```{r}
+scoresRotated.df <- data.frame(scoresRotated)
+scoresRotated.df$names <- schoolNames
+rotation.df <- data.frame(rotation.mat)
+rotation.df$events <- eventNames
+```
+
+```{r}
+sc <- 5000 ## get everything on the same scale
+scoresRotated.df %>% 
+  ggplot()+
+  ## Rotated athlete scores
+  geom_point(aes(PC1,PC2))+
+  ## Add the loadings,  these are just the coordinates in the PC1 and PC2 vectors
+  geom_segment(data=rotation.df,
+             aes(x=0,y=0,xend=sc*PC1,yend=sc*PC2),size=1,color="red")+
+  geom_label(data=rotation.df,
+              aes(sc*PC1,sc*PC2,label=events),color="red")+
+  labs(title="PCA for 2015 Colleges")
+```
+Seems like degree in MS is strongly correlated with good salary, SAT avg and 6 year completion rate. White percentage correleated with net price, no pell debt median. Parttime rate is strongly associated with loan.
+
+#K means
+```{r}
+data1.mat <- data.matrix(scoresRotated.df[c("PC1","PC2")])
+```
+
+Pull off the centroids, we  m//////////'ll need these soon.
+```{r}
+numClusters <- 3
+mod.km <- kmeans(data.mat,centers=numClusters)
+```
+Note: we can add an extra parameter "nstart"  to indicate how many times to run the clustering. This can be helpful to account for variances  in the outcome due to the  random start.  If  nstart>1, the algorithm will  try to find the most common  clustering outcome.
+
+Here's what you get..
+```{r}
+names(mod.km)
+```
+
+For example, you can access the clusters and  centers of mass. 
+```{r}
+mod.km$centers
+mod.km$cluster
+```
+```{r}
+## Search up to M
+M <- 15
+twissVals <- numeric(M)
+for(k in 1:M){
+    mod.kmeans <- kmeans(scoresRotated.df[c("PC1","PC2")],centers=k,nstart=25)
+    twissVals[k] <- mod.kmeans$tot.withinss
+}
+```
+
+
+What do we have
+```{r}
+data.frame(k=1:M,
+           twiss=twissVals) %>%
+    ggplot()+
+    geom_point(aes(k,twiss))+
+    geom_line(aes(k,twiss))+
+  scale_y_log10()+
+    scale_x_continuous(breaks=1:M)
+```
+
+We see a sharp "elbow" around k=6, indicating that this is a good choice for the clustering.
+
+In general, this elbow plot can help identify the optimal k. In practice, the elbow can be hard to precisely identify. Close enough is good enough. Of course, in practice, you would use some sort of train/test to see if the elbow persists. 
+
+
+## Using the factoextra package
+The factoextra package has some tools to make this easier to see/
+For example, it will create the TWSS plot
+```{r}
+library(factoextra)
+data2.df <- scoresRotated.df[c("PC1","PC2")]
+fviz_nbclust(data2.df,kmeans,method="wss")
+```
+
+
+Visualizing the clustering
+```{r}
+K <- 10
+mod.km <- kmeans(data2.df,K,nstart=25)
+data2.df$cluster <- factor(mod.km$cluster)
+```
+
+
+The plot of the points and their clusters
+```{r}
+ggplot(data2.df,aes(PC1,PC2,color=cluster))+
+    geom_point(size=2)+
+    guides(color=F)+
+    ggtitle("kmeans cluster")
+```
+
+
+Here is how factoextra does it.
+```{r}
+fviz_cluster(mod.km,data=data2.df[,1:2])
+```
+
+My result actually matches usnews ranking!

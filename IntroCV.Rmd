@@ -1,0 +1,69 @@
+---
+title: "Prostate GLMNET"
+author: "Shan Chen"
+date: "04/02/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(ISLR) ## for lda
+library(MASS)
+library(class) #for knn
+```
+manage data
+```{r}
+prostate.df <- read_csv("Prostate.csv")
+prostate.mat <- data.matrix(prostate.df)
+data.x <- prostate.mat[,-9]
+data.y <- prostate.mat[,9]
+```
+
+```{r}
+numLambda <- 100
+expVals <- seq(-4,4,length=numLambda)
+lambda.grid <- 10^expVals
+plot(expVals,lambda.grid)
+```
+
+
+```{r}
+cv.ridge <- cv.glmnet(data.x,
+                      data.y,
+                      alpha=0,
+                      lambda=lambda.grid,
+                      intercept=TRUE)
+plot(cv.ridge)
+```
+
+
+```{r}
+N <- nrow(prostate.df)
+numFolds <- 10
+lambda.val <- lambda.grid[1]
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+

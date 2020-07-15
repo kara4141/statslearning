@@ -1,0 +1,187 @@
+---
+title: "Linear/Quadratic Discriminant Analysis"
+author: "Shan Chen"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r}
+library(tidyverse)
+library(FNN)
+```
+
+# Assignment 2: Wine Quality Prediction
+Go to: https://archive.ics.uci.edu/ml/datasets/Wine+Quality
+Use the white wine data set. Build a model to predict quality as
+a function of the predictors. Compare linear regression with KNN
+(using knn.reg)
+For linear regression, use CV and/or bootstrap to determine the best (or at least a good)
+set of predictors.
+For KNN, determine the best choice of k.
+
+Note: before starting the modeling, scale the predictors data before  applying knn.
+
+```{r}
+wine.df <- read_delim("winequality-white.csv",delim=";")
+```
+```{r}
+#check data
+dim(wine.df)
+#simple linear model, 10folds
+N <- nrow(wine.df)
+numFolds <- 10
+folds <- sample(1:numFolds,N,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.df <- wine.df[folds != fold,]
+  test.df <- wine.df[folds == fold,]
+  mod.lm <- lm(quality ~ ., data=train.df)
+  pred <- predict(mod.lm, newdata=test.df)
+  errs[fold] <- with(test.df,mean((quality-pred)^2))
+}
+mse.lm <- mean(errs)
+
+```
+
+```{r}
+totPreds <- 11
+numPreds <- 2 #chose 2 pre
+sampPreds <- sort(sample(1:totPreds,numPreds,rep=F))
+data.df <- wine.df[,c(sampPreds,totPreds+1)]
+
+numFolds <- 10
+folds <- sample(1:numFolds,N,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.df <- data.df[folds != fold,]
+  test.df <- data.df[folds == fold,]
+  mod.lm <- lm(quality ~ ., data=train.df)
+  pred <- predict(mod.lm, newdata=test.df)
+  errs[fold] <- with(test.df,mean((quality-pred)^2))
+}
+(mse.lm <- mean(errs))
+```
+func that return mse values with corresponding predictors
+```{r}
+RandPreds <- function(numPreds){
+  sampPreds <- sort(sample(1:totPreds,numPreds,rep=F))
+  data.df <- wine.df[,c(sampPreds,totPreds+1)]
+  folds <- sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.df <- data.df[folds != fold,]
+    test.df <- data.df[folds == fold,]
+    mod.lm <- lm(quality ~ ., data=train.df)
+    pred <- predict(mod.lm, newdata=test.df)
+    errs[fold] <- with(test.df,mean((quality-pred)^2))
+  }
+  mse.lm <- mean(errs)
+  c(mse.lm,sampPreds)
+}
+```
+try it out and compare results:
+```{r}
+RandPreds(6)
+RandPreds(6)
+RandPreds(6)
+RandPreds(7)
+RandPreds(7)
+RandPreds(7)
+RandPreds(8)
+RandPreds(8)
+RandPreds(8)
+
+```
+
+```{r}
+RandPreds(9)
+RandPreds(9)
+RandPreds(10)
+RandPreds(10)
+RandPreds(11)
+msewin.lm = RandPreds(11)
+```
+As we can see from result above, it can get close, but beating the full set predictors is pretty hard.
+
+
+#KNN:
+```{r}
+wine.mat <- data.matrix(wine.df)
+##just the predictors, scaled
+wine.x <- scale(wine.mat[,-12])
+## the response
+wine.y <- wine.mat[,12]
+## check that these are close to 0
+colMeans(wine.x)
+
+```
+
+```{r}
+kVal <- 10
+## build the folds
+numFolds <- 10
+folds <- sample(1:numFolds,N,rep=T)
+## Ready to cross-validate
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.x <- wine.x[folds != fold,]
+  test.x <- wine.x[folds == fold,]
+  train.y <- wine.y[folds != fold]
+  test.y <- wine.y[folds == fold]
+  mod.knn <- knn.reg(train.x,test.x,train.y,k=kVal)
+  pred <- mod.knn$pred
+  errs[fold] <- mean((test.y-pred)^2)
+}
+mse.knn <- mean(errs)
+##compare with lm....
+c(mse.lm,mse.knn)
+```
+
+#repeat KNN
+```{r}
+mseKNN <- function(kVal){
+  folds <- sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.x <- wine.x[folds != fold,]
+    test.x <- wine.x[folds == fold,]
+    train.y <- wine.y[folds != fold]
+    test.y <- wine.y[folds == fold]
+    mod.knn <- knn.reg(train.x,test.x,train.y,k=kVal)
+    pred <- mod.knn$pred
+    errs[fold] <- mean((test.y-pred)^2)
+  }
+  mean(errs)
+}
+```
+
+#set k= 1-61 only odd 
+```{r}
+maxK <- 30
+#only odd values
+kVals <- 2*(1:maxK)+1
+## this takes a moment or two...
+errsKNN <- map_dbl(kVals,mseKNN)
+```
+#knn vs err by values
+```{r}
+data.frame(k=kVals,err=errsKNN) %>%
+ggplot()+
+geom_point(aes(k,err))+
+geom_line(aes(k,err))
+```
+
+#findmin Kval:
+#KNN won by 6%
+```{r}
+minid <- which.min(errsKNN)
+k0id <- kVals[minid]
+c(k0id)
+(mse.knn <- errsKNN[k0id])
+c(msewin.lm,mse.knn)
+```
+
+
+

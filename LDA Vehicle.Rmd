@@ -1,0 +1,290 @@
+---
+title: "LDA and Dimension Reduction"
+author: "Shan Chen"
+date: "3/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(MASS) ## For lda
+library(tidyverse)
+library(mlbench)
+
+```
+
+```{r}
+data("Vehicle")
+```
+There are four types of cars. See all 4 Class distributions.
+```{r}
+with(Vehicle,table(Class))
+```
+```{r}
+Vehicle2.df <- Vehicle %>%
+filter(Class %in% c("opel","saab")) %>%
+mutate(Class01=ifelse(Class=="opel", 1, 0)) %>%
+droplevels() ##ignore the other Class factors
+```
+divide the data to test and train
+```{r}
+N <- nrow(Vehicle2.df)
+train <- sample(1:N,N/2,rep=F)
+train.df <- Vehicle2.df[train,]
+test.df <- Vehicle2.df[-train,]
+mod.log <- glm(Class01~.-Class, data = train.df, family=binomial)
+test.df$prob.log <- predict(mod.log, newdata=test.df, type="response")
+test.df <- test.df %>%
+mutate(Class.log=as.factor(ifelse(prob.log>.5, "opel", "saab")))
+with(test.df, table(Class, Class.log))
+```
+
+```{r}
+(err.log <- with(test.df, mean(Class != Class.log)))
+```
+
+```{r}
+mod.lda <- lda(Class~.-Class01, data=train.df)
+test.df$Class.lda <- predict(mod.lda, newdata=test.df)$class
+with(test.df, table(Class, Class.lda))
+```
+
+```{r}
+(err.lda <- with(test.df, mean(Class != Class.lda)))
+```
+
+```{r}
+with(test.df, table(Class.log, Class.lda))
+```
+
+```{r}
+scale.lda <- mod.lda$scaling
+(scale.lda <- scale.lda/sqrt(sum(scale.lda^2)))
+```
+
+```{r}
+data.mat <- data.matrix(
+subset(test.df,
+select=-c(Class,Class01,prob.log,Class.log,Class.lda)))
+proj.vals <- data.mat %*% scale.lda
+test.df$proj <- as.numeric(proj.vals)
+test.df %>%
+ggplot()+
+geom_density(aes(proj,fill=factor(Class)))+
+labs(title="Separation of Classes(opel and saab) in LDA Space (dimension=1)",
+fill="Class",x="")+
+facet_grid(Class~.)
+```
+
+Other Classes
+Repeat the above analysis with “bus” and “van” instead of “opel” and “saab”.
+Repeat the above analysis with “opel” and “bus” instead of “opel” and “saab”.
+
+Bus and Van
+
+```{r}
+Vehicle2.df <- Vehicle %>%
+filter(Class %in% c("bus","van")) %>%
+mutate(Class01=ifelse(Class=="bus", 1, 0)) %>%
+droplevels() ##ignore the other Class factors
+```
+divide the data to test and train
+```{r}
+N <- nrow(Vehicle2.df)
+train <- sample(1:N,N/2,rep=F)
+train.df <- Vehicle2.df[train,]
+test.df <- Vehicle2.df[-train,]
+mod.log <- glm(Class01~.-Class, data = train.df, family=binomial)
+test.df$prob.log <- predict(mod.log, newdata=test.df, type="response")
+test.df <- test.df %>%
+mutate(Class.log=as.factor(ifelse(prob.log>.5, "bus", "van")))
+with(test.df, table(Class, Class.log))
+```
+
+```{r}
+(err.log <- with(test.df, mean(Class != Class.log)))
+```
+
+```{r}
+mod.lda <- lda(Class~.-Class01, data=train.df)
+test.df$Class.lda <- predict(mod.lda, newdata=test.df)$class
+with(test.df, table(Class, Class.lda))
+```
+
+```{r}
+(err.lda <- with(test.df, mean(Class != Class.lda)))
+```
+
+```{r}
+with(test.df, table(Class.log, Class.lda))
+```
+
+```{r}
+scale.lda <- mod.lda$scaling
+(scale.lda <- scale.lda/sqrt(sum(scale.lda^2)))
+```
+
+```{r}
+data.mat <- data.matrix(
+subset(test.df,
+select=-c(Class,Class01,prob.log,Class.log,Class.lda)))
+proj.vals <- data.mat %*% scale.lda
+test.df$proj <- as.numeric(proj.vals)
+test.df %>%
+ggplot()+
+geom_density(aes(proj,fill=factor(Class)))+
+labs(title="Separation of Classes(bus and van) in LDA Space (dimension=1)",
+fill="Class",x="")+
+facet_grid(Class~.)
+```
+
+Opel and Bus
+
+```{r}
+Vehicle2.df <- Vehicle %>%
+filter(Class %in% c("opel","bus")) %>%
+mutate(Class01=ifelse(Class=="opel", 1, 0)) %>%
+droplevels() ##ignore the other Class factors
+```
+divide the data to test and train
+```{r}
+N <- nrow(Vehicle2.df)
+train <- sample(1:N,N/2,rep=F)
+train.df <- Vehicle2.df[train,]
+test.df <- Vehicle2.df[-train,]
+mod.log <- glm(Class01~.-Class, data = train.df, family=binomial)
+test.df$prob.log <- predict(mod.log, newdata=test.df, type="response")
+test.df <- test.df %>%
+mutate(Class.log=as.factor(ifelse(prob.log>.5, "opel", "bus")))
+with(test.df, table(Class, Class.log))
+```
+
+```{r}
+(err.log <- with(test.df, mean(Class != Class.log)))
+```
+
+```{r}
+mod.lda <- lda(Class~.-Class01, data=train.df)
+test.df$Class.lda <- predict(mod.lda, newdata=test.df)$class
+with(test.df, table(Class, Class.lda))
+```
+
+```{r}
+(err.lda <- with(test.df, mean(Class != Class.lda)))
+```
+
+```{r}
+with(test.df, table(Class.log, Class.lda))
+```
+
+```{r}
+scale.lda <- mod.lda$scaling
+(scale.lda <- scale.lda/sqrt(sum(scale.lda^2)))
+```
+
+```{r}
+data.mat <- data.matrix(
+subset(test.df,
+select=-c(Class,Class01,prob.log,Class.log,Class.lda)))
+proj.vals <- data.mat %*% scale.lda
+test.df$proj <- as.numeric(proj.vals)
+test.df %>%
+ggplot()+
+geom_density(aes(proj,fill=factor(Class)))+
+labs(title="Separation of Classes(opel and bus) in LDA Space (dimension=1)",
+fill="Class",x="")+
+facet_grid(Class~.)
+```
+
+Three Classes Repeat: LDA Only
+```{r}
+Vehicle3.df <- Vehicle %>%
+filter(Class %in% c("opel","van", "bus")) %>%
+droplevels()
+```
+divide the data to test and train
+```{r}
+N <- nrow(Vehicle3.df)
+train <- sample(1:N,N/2,rep=F)
+train.df <- Vehicle3.df[train,]
+test.df <- Vehicle3.df[-train,]
+mod.lda <- lda(Class~. , data=train.df)
+test.df$Class.lda <- predict(mod.lda, newdata=test.df)$class
+with(test.df, table(Class, Class.lda))
+```
+
+```{r}
+(err.lda <- with(test.df, mean(Class != Class.lda)))
+```
+
+```{r}
+scale.lda <- mod.lda$scaling
+(scale.lda <- scale.lda/sqrt(sum(scale.lda^2)))
+```
+
+```{r}
+data.mat <- data.matrix(subset(test.df, select=-c(Class,Class.lda)))
+proj.vals <- data.mat %*% scale.lda
+test.df$proj1 <- as.numeric(proj.vals[,1])
+test.df$proj2 <- as.numeric(proj.vals[,2])
+test.df %>%
+ggplot()+
+geom_point(aes(proj1,proj2,color=Class))+
+labs(title = "Three Class Separation the Projection Space")
+```
+
+Four Classes:
+
+
+Three Classes Repeat: LDA Only
+divide the data to test and train
+```{r}
+N <- nrow(Vehicle)
+train <- sample(1:N,N/2,rep=F)
+train.df <- Vehicle[train,]
+test.df <- Vehicle[-train,]
+mod.lda <- lda(Class~., data=train.df)
+test.df$Class.lda <- predict(mod.lda, newdata=test.df)$class
+with(test.df, table(Class, Class.lda))
+```
+
+```{r}
+(err.lda <- with(test.df, mean(Class != Class.lda)))
+```
+
+```{r}
+scale.lda <- mod.lda$scaling
+(scale.lda <- scale.lda/sqrt(sum(scale.lda^2)))
+```
+
+```{r}
+data.mat <- data.matrix(subset(test.df, select=-c(Class,Class.lda)))
+proj.vals <- data.mat %*% scale.lda
+test.df$proj1 <- as.numeric(proj.vals[,1])
+test.df$proj2 <- as.numeric(proj.vals[,2])
+test.df$proj3 <- as.numeric(proj.vals[,3])
+test.df %>%
+ggplot()+
+geom_point(aes(proj1,proj2,color=Class))+
+labs(title = "Three Class Separation the Projection Space")
+```
+
+ggplot in 3D
+```{r}
+library("gg3D")
+```
+
+```{r}
+cols <- c("red","blue","orange")
+test.df %>%
+ggplot( aes(x=proj1, y=proj2, z=proj3, color=factor(Class))) +
+theme_void() +
+axes_3D(theta=110,phi=10) +
+scale_color_manual(values=c(cols,"cyan"))+
+stat_3D()+
+labs(title="3 Dimensional Projection Space",
+color="Class")
+```

@@ -1,0 +1,237 @@
+---
+title: "ZIP"
+author: "Shan Chen"
+date: "5/4/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F) 
+suppressMessages(library(tidyverse))
+suppressMessages(library(factoextra))
+suppressMessages(library(ggrepel))
+```
+#Eigenspace
+```{r}
+dataDir <- "/Users/shawnchen/Desktop"
+test.df <- read.csv(file.path(dataDir,"zipTestSmall.csv"),header=T) 
+train.df <- read.csv(file.path(dataDir,"zipTrainSmall.csv"),header=T)
+```
+
+```{r}
+zipTest <- list()
+zipstrain <- list()
+for(i in 1:10){
+  zipTest [[i]] <- test.df %>%
+    filter(V1==i-1) %>%
+    select(-V1) %>%
+    t()%>%
+    scale(scale = F)
+  zipstrain [[i]] <- train.df %>%
+    filter(V1==i-1) %>%
+    select(-V1) %>%
+    t()%>%
+    scale(scale = F)
+}
+
+```
+
+Note that n= number of observations, an observation  is a pixel
+value.  Also, p = number of features, in this case, its a the pixal
+value across all the cats!
+
+## Helper functions
+
+In order to work with these images, we need  to be able to view them. To do so, let's create a couple helper functions  that will facilitate going back and forth between flat and square images. 
+
+
+The first function converts an image into 64x64 matrix.
+```{r}
+imageConv <- function(flatImage,size=64){
+    matrix(flatImage,nrow=size,byrow=T)    
+}
+
+```
+
+
+The second function  reverses the process. 
+```{r}
+flatConv <- function(rectImage,size=64){
+    matrix(t(rectImage),nrow=size^2,ncol=1)[,1]
+}
+
+```
+
+This makes it easy to plot our images with a minimum of fuss and muss.
+```{r}
+flatImage <- function(dat) {
+  img <- imageConv(dat)
+  image(img,col=grey.colors(256)) 
+}
+```
+
+# Singular Value Decomposition
+
+Now we can begin the computation in the image space. Remember the plan.
+
+ * Perform the SVD decomposion of the full data set.
+ * Identify the eigenvectors that span the column space (subset of image space).  
+ * Use the eigenvectors to define the projection mapping from the full image space onto the column space.
+ * The closer an image is to a particular eigenspace, the more it is like the common images.
+
+Now the Singular Value Decomposition of the cat images
+```{r}
+zipTrain.svd <- list()
+U <- list()
+for(i in 1:10){
+zipTrain.svd[[i]] <- svd(zipstrain[[i]])
+U[[i]] <- zipTrain.svd[[i]]$u
+}
+```
+
+## Projections onto space: Eigenface reconstuctions
+
+## 0 Space
+Pull off a dog!
+```{r}
+a0 <- zipstrain[[1]]
+a00 <- a0[,1]
+```
+
+#10 Eigenspaces
+
+Define all 
+```{r}
+hat <- list()
+for(i in 1:10){
+hat[[i]] <- U[[i]] %*% t(U[[i]])
+}
+```
+
+```{r}
+suanyisuan <- function(img){
+  proj <- numeric()
+
+  dist <- numeric()
+  for(i in 1:10){
+    proj[i] <- hat[[i]] %*% img
+    dist[i] <- mean((img-proj[i])^2)
+  }
+  which.min(dist)-1
+}
+
+```
+    proj[i] <- hat[[i]] %*% zipTest[i1]
+Which space is the original image closest to?
+#0
+```{r}
+j=0
+for (i in 1:180) {
+  jieguo <- suanyisuan(zipTest[[1]][,i])
+  if(jieguo!=0){
+    j = j +1
+  }
+}
+c(j/180)
+```
+catDist <- mean((anImage-catProj)^2)
+dogDist <- mean((anImage-dogProj)^2)
+#1
+```{r}
+j=0
+for (i in 1:129) {
+  jieguo <- suanyisuan(zipTest[[2]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/129)
+```
+#2
+```{r}
+j=0
+for (i in 1:85) {
+  jieguo <- suanyisuan(zipTest[[3]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/85)
+```
+#3
+```{r}
+j=0
+for (i in 1:84) {
+  jieguo <- suanyisuan(zipTest[[4]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/84)
+```
+#4
+```{r}
+j=0
+for (i in 1:128) {
+  jieguo <- suanyisuan(zipTest[[5]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/128)
+```
+#5
+```{r}
+j=0
+for (i in 1:71) {
+  jieguo <- suanyisuan(zipTest[[6]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/71)
+```
+#6
+```{r}
+j=0
+for (i in 1:76) {
+  jieguo <- suanyisuan(zipTest[[7]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/76)
+```
+#7
+```{r}
+j=0
+for (i in 1:74) {
+  jieguo <- suanyisuan(zipTest[[8]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/74)
+```
+#8
+```{r}
+j=0
+for (i in 1:90) {
+  jieguo <- suanyisuan(zipTest[[9]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/90)
+```
+#9
+```{r}
+j=0
+for (i in 1:83) {
+  jieguo <- suanyisuan(zipTest[[10]][,i])
+  if(jieguo!=1){
+    j = j +1
+  }
+}
+c(j/83)
+```

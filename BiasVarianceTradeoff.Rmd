@@ -1,0 +1,169 @@
+---
+title: "BiasVarianceTradeoff.rmd"
+author: "Shan Chen"
+date: "2/16/2020"
+output:
+  html_document: default
+  pdf_document: 
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(FNN)
+```
+
+# Assignments 
+## Assignment 1
+
+```{r}
+f1 <- function(x) x+2
+f2 <- function(x) (x-1)*(x+1)
+f3 <- function(x) x*(x-1)*(x+1)
+f4 <- function(x) (x-1)*(x+1)*(x-1)*(x+1)
+```
+Constuct data and dataframe
+```{r}
+K <- 101
+## Range
+xMin <- -1
+xMax <- 1
+xVals<-seq(xMin, xMax,length=K)
+sizeDS <-50 # number of data points
+sig <-1.75 # for the noise
+buildData <- function(f,sizeDS,sig,xMin = -1, xMax = 1){
+##predictor
+x<-runif(sizeDS,xMin, xMax) # inputs
+## Repsonse
+y<-f(x)+rnorm(sizeDS,0,sig) #realized values f(x)+noise
+## Put in a data frame
+data.frame(x,y)
+}
+```
+
+```{r}
+biasVarTO3 <- function(form,sizeDS,numDS,x0){
+  allVals <- matrix(ncol=2,nrow=numDS)
+  for(m in 1:numDS){
+    mod <- lm(formula(form),buildData(f,sizeDS,sig))
+    pred <- predict(mod,newdata=data.frame(x=x0))
+    allVals[m,1] <- pred
+  }
+  allVals[,2] <- f(x0)+rnorm(numDS,0,sig)
+  
+  allVals.df <- data.frame(pred=allVals[,1],true=allVals[,2])
+  mse <- with(allVals.df,mean((pred-true)^2))
+  var0 <- with(allVals.df,var(pred))
+  bias2 <- with(allVals.df,mean(pred-true))^2
+  noise <- sig^2
+  c(mse,var0,bias2,noise)
+}
+
+biasVarTO3.knn <- function(kVal,sizeDS,numDS,x0){
+  allVals <- matrix(ncol=2,nrow=numDS)
+  for(m in 1:numDS){
+    train.df <- buildData(f,sizeDS,sig)
+    train.X <- as.matrix(train.df[c("x")])
+    test.X <- as.matrix(x0)
+    train.Y <- as.matrix(train.df[c("y")])                            
+    mod.knn <- knn.reg(train.X,test.X,train.Y,k=kVal)
+    allVals[m,1] <- mod.knn$pred
+  }
+  allVals[,2] <- f(x0)+rnorm(numDS,0,sig)
+  allVals.df <- data.frame(pred=allVals[,1],true=allVals[,2])
+  mse <- with(allVals.df,mean((pred-true)^2))
+  var0 <- with(allVals.df,var(pred))
+  bias2 <- with(allVals.df,mean(pred-true))^2
+  noise <- sig^2
+  c(mse,var0,bias2,noise)
+}
+```
+buildgraph
+```{r}
+buildGraph <- function(degree){
+  res <- matrix(nrow=maxDegree,ncol=4)
+  for(k in 1:maxDegree){
+    ##Build up the formula
+    form0 <- sprintf("%s + I(x^%s)",form0,k)
+    res[k,] <- biasVarTO3(form0,sizeDS,numReps,0.5) 
+    print(form0)
+    print(res[k,])
+  }
+  
+  res.df <- data.frame(flex=1:maxDegree,res)
+  names(res.df) <- c("flex","mse","var","bias2","noise")
+  
+  res.df %>% 
+    gather(Type,err,mse:noise) %>% 
+    ##put these in order
+    mutate(Type=factor(Type,levels=c("mse","var","bias2","noise"))) %>% 
+    ggplot()+
+    geom_point(aes(flex,err,color=Type))+
+    geom_line(aes(flex,err,color=Type))+
+    labs(x="Flexibility",
+         y="Error",
+         title="Bias-Variance Trade-off",
+         subtitle=str_c("The Underlying True Models with Degree ",degree))
+}
+buildGraph.knn <- function(degree){
+  res <- matrix(nrow=maxK-2,ncol=4)
+  for(k in 3:maxK){
+    ##Build up the formula
+    form0 <- sprintf("K=%s",as.character(k))
+    res[k-2,] <- biasVarTO3.knn(k,sizeDS,numReps,0.5) 
+    print(form0)
+    print(res[k-2,])
+  }
+  
+  res.df <- data.frame(flex=maxK:3,res)
+  names(res.df) <- c("flex","mse","var","bias2","noise")
+  
+  res.df %>% 
+    gather(Type,err,mse:noise) %>% 
+    ##put these in order
+    mutate(Type=factor(Type,levels=c("mse","var","bias2","noise"))) %>% 
+    ggplot()+
+    geom_point(aes(flex,err,color=Type))+
+    geom_line(aes(flex,err,color=Type))+
+    labs(x="Flexibility",
+         y="Error",
+         title="Bias-Variance Trade-off",
+         subtitle=str_c("The Underlying True Models with Degree ",degree))
+}
+```
+print four graphs
+```{r}
+sig <-1.75
+sizeDS <- 50
+numReps <- 400 
+maxDegree <- 15
+
+form0 <- "y ~ "
+f <- f1
+buildGraph("1")
+form0 <- "y ~ "
+f <- f2
+buildGraph("2")
+form0 <- "y ~ "
+f <- f3
+buildGraph("3")
+form0 <- "y ~ "
+f <- f4
+buildGraph("4")
+```
+
+## Assignment 2
+
+```{r}
+maxK <- 20
+f <- f1
+buildGraph.knn("1")
+f <- f2
+buildGraph.knn("2")
+f <- f3
+buildGraph.knn("3")
+f <- f4
+buildGraph.knn("4")
+
+```

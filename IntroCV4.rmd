@@ -1,0 +1,110 @@
+---
+title: "introCV4"
+author: "Shan Chen"
+date: "04/01/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(ISLR) ## for lda
+library(MASS)
+library(class)#for knn
+```
+
+## Assignment 4:  Classification 2
+Consider the data set in "ClassificationData2D.csv", use 10-fold cross-validation to determine the best possible KNN predictive model.
+```{r}
+data2D.df <- read_csv( "ClassificationData2D.csv")
+data2D.df %>%
+  ggplot()+
+  geom_point(aes(x1,x2,color=factor(class)))+
+  scale_color_manual(values=c("red","blue"))+
+  labs(title="2D Classification Data")
+
+
+```
+KNN：
+```{r}
+N <- nrow(data2D.df)
+p <- ncol(data2D.df)
+names(data2D.df)
+kVal <- 10
+numFolds <- 10
+folds <- sample(1:numFolds,N,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.x <- data.matrix(data2D.df[folds != fold, 1:2])
+  test.x <- data.matrix(data2D.df[folds == fold, 1:2])
+  train.y <- data.matrix(data2D.df[folds != fold, 3])
+  test.y <- data.matrix(data2D.df[folds == fold, 3])
+  mod.knn <- knn(train.x,test.x,train.y,k=kVal)
+  errs[fold] <- mean((test.y != mod.knn))
+}
+mean(errs)
+```
+knn function
+```{r}
+errCV.knn <- function(kVal){
+  folds <- sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  for(fold in 1:numFolds){
+    train.x <- data.matrix(data2D.df[folds != fold, 1:2])
+    test.x <- data.matrix(data2D.df[folds == fold, 1:2])
+    train.y <- data.matrix(data2D.df[folds != fold, 3])
+    test.y <- data.matrix(data2D.df[folds == fold, 3])
+    mod.knn <- knn(train.x,test.x,train.y,k=kVal)
+    errs[fold] <- mean((test.y != mod.knn))
+  }
+  mean(errs)
+}
+```
+run kval over error and plot the result
+```{r}
+maxK <- 30
+kVals <- 2*(1:maxK)+1
+errs <- map_dbl(kVals,errCV.knn)
+data.frame(k=kVals,err=errs) %>%
+  ggplot()+
+  geom_point(aes(k,err))+
+  geom_line(aes(k,err))
+#show optimal choice:
+kBest <- 31
+(err.knn <- errCV.knn(kBest))
+```
+How does this  result  compare with Logistic regression, LDA, and QDA.  In each case, just use the full predictor set. Use 10-fold cross-validation to estimate the error rate.
+For LDA with 10 folds:
+```{r}
+folds <- sample(1:numFolds,N,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.df <- data2D.df[folds != fold,]
+  test.df <- data2D.df[folds != fold, ]
+  mod.lda <- lda(class ~ x1+x2,data=train.df)
+  pred <- predict(mod.lda,newdata=test.df)
+  pred$class
+  errs[fold] <- with(test.df,mean((class!=pred$class)))
+}
+(err.lda <- mean(errs))
+```
+
+For QDA with 10 folds:
+```{r}
+folds <- sample(1:numFolds,N,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.df <- data2D.df[folds != fold,]
+  test.df <- data2D.df[folds != fold, ]
+  mod.qda <- qda(class ~ x1+x2,data=train.df)
+  pred <- predict(mod.qda,newdata=test.df)
+  pred$class
+  errs[fold] <- with(test.df,mean((class!=pred$class)))
+}
+(err.qda <- mean(errs))
+```
+error compare:
+```{r}
+c(err.knn,err.lda,err.qda)
+min(err.knn,err.lda,err.qda)
+```
+KNN is our winner.

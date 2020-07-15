@@ -1,0 +1,149 @@
+---
+title: "Bagging and Boosting Linear Models for Regression"
+author: "Shan Chen"
+date: "4/27/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressMessages(library(tidyverse))
+```
+
+#setup
+```{r}
+library(tidyverse)
+library(randomForest)
+library(glmnet)
+library(gbm)
+library(tidyverse)
+library(tree)
+```
+
+1:
+```{r}
+dataDir <- "/Users/shawnchen/Desktop/rzhw"
+dataFile <- "CountyElection.csv"
+dictFile <- "County_Facts_Dictionary.csv"
+
+countyElection.df <- read.csv(file.path(dataDir,dataFile))
+names(countyElection.df)
+dictionary.df <-read.csv(file.path(dataDir,dictFile))
+dim(countyElection.df)
+
+countyIDInfo.df <- countyElection.df %>% 
+  select(fips,State)
+
+countyElection.df <- countyElection.df %>% 
+  select(-fips,-State)
+
+dictionary.df <- dictionary.df %>% 
+  filter(! column_name %in% c("fips","State"))
+```
+Random Forest
+```{r}
+N <- nrow(countyElection.df)
+n <- 500
+build <- sample(1:N,n,rep=F) 
+data.df <- countyElection.df[build,]
+numTree <- 100
+numPred <- 45
+mod.rf <- randomForest(VoterProp ~.,
+                        data=data.df, 
+                        ntree=numTree, 
+                        mtry=numPred/3)
+mod.rf
+plot(mod.rf)
+```
+Bagging
+```{r}
+n <- 500
+build <- sample(1:N,n,rep=F)
+data.df <- countyElection.df[build,]
+##Data to test/validate the model
+n <- 500
+test <- sample(setdiff(1:N,build),n,rep=F)
+test.df <- countyElection.df[test,]
+numTree <- 100
+numPred <- 45
+mod.bag <- randomForest(VoterProp ~.,
+                        data=data.df, 
+                        ntree=numTree, 
+                        mtry=numPred)
+mod.bag
+plot(mod.bag)
+```
+boosting:
+```{r}
+numPreds <- ncol(countyElection.df)-1
+numTrees <- 800
+theShrinkage <- 0.1
+theDepth <- 2
+mod.gbm.cv <- gbm(VoterProp ~ .,
+                  data=countyElection.df,
+                  distribution="gaussian", ## for regression
+                  n.trees=numTrees,
+                  shrinkage=theShrinkage,
+                  interaction.depth = theDepth,
+                  cv.folds = 5,
+                  n.minobsinnode=10,
+                  n.cores = 4)
+numTreesOpt <- gbm.perf(mod.gbm.cv,method="cv")
+```
+
+Assignment 1
+Bagging Linear Regression: The idea is simple. At each stage, after bootstrapping the countyElection, build a linear model (with lm) using all of the available predictors. As before, collect the predictions at each bootstrap in a matrix (oobPreds). At the end, use this to compute the error estimate (MSE or Misclassification)
+```{r}
+# Linear Model
+N <- nrow(countyElection.df)
+numBoots <- 100
+oobPreds <- matrix(nrow=N,ncol=numBoots)
+for(k in 1:numBoots){
+  boots <- sample(1:N,N,rep=T) 
+  boot.df <- countyElection.df[boots,]
+  oobs <- setdiff(1:N,boots) 
+  oob.df <- countyElection.df[oobs,] 
+  bootedTree <- lm(VoterProp ~ .,
+                   data=boot.df)
+  preds <- predict(bootedTree, newdata=oob.df)
+  oobPreds[oobs,k] <- preds 
+}
+meanPreds <- apply(oobPreds,1,function(vals) mean(vals,na.rm=T))
+(mse.boots <- with(countyElection.df, mean((meanPreds-VoterProp)^2)))
+```
+
+It is quite similar with normal bagging result as we can see above.
+
+Assignment 2
+A Random Forest of Linear Regression: The twist now is that at each stage, select a random subset of the predictors to use. As with the old Random Forest, establish a mtry to specify how many of the predictors to select. With these predictors, build a linear model, predict, etc.
+```{r}
+# Linear Model
+oobPreds <- matrix(nrow=N,ncol=numBoots) 
+names <- names(countyElection.df) [-ncol(countyElection.df)] 
+numPreds <- ncol(countyElection.df)-1
+
+for(k in 1:numBoots){
+  boots <- sample(1:N,N,rep=T)
+  boot.df <- countyElection.df[boots,]
+  oobs <- setdiff(1:N,boots)
+  oob.df <- countyElection.df[oobs,]
+  preds <- sample(1:numPreds, 5, rep=F)
+  boot.df <- boot.df[,c(preds, numPreds+1)] 
+  bootedTree <- lm(VoterProp ~ .,
+                   data=boot.df)
+  preds <- predict(bootedTree, newdata=oob.df)
+  oobPreds[oobs,k] <- preds 
+}
+meanPreds <- apply(oobPreds,1,function(vals) mean(vals,na.rm=T))
+(mse.boots <- with(countyElection.df, mean((meanPreds-VoterProp)^2)))
+```
+It is a bit off comparing with normal random forest result as we can see above.
+
+Assignment 3
+Boosting Linear Regression: Now we go the other direction with a linear model. At each stage, build a weak linear model consisting of just one predictor. Select the predictor to use by building a model for each predictor and select the one that performs best (use MSE or Rˆ2 as a determiner). Use the weak linear model to predict the residuals, “sand off” a bit of the predictions using the shrinkage value. Repeat a bunch of times.
+```{r}
+
+```
+

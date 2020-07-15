@@ -1,0 +1,174 @@
+---
+title: "IntroRegression_S20.Rmd"
+author: "Shan Chen"
+date: "2/20/2020"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE)
+
+library(tidyverse)
+library(broom)
+
+```
+
+```{r}
+data.df <- read.csv("TheftData2019.csv")
+head(data.df)
+```
+
+```{r}
+N <- nrow(data.df) ##
+bootSample <- sample(1:N,N,rep=T)
+boot.df <- data.df[bootSample,]
+```
+
+```{r}
+data.df %>%
+ggplot()+
+  geom_histogram(aes(time),bin=60)
+```
+
+```{r}
+## A function to put the data into numBins discrete time bins
+binData <- function(data.df,numBins=240){
+  data.df %>%
+    mutate(time=cut_interval(time,numBins,                     labels=as.numeric((1:numBins)*24/numBins))) %>%
+    mutate(time=as.numeric(as.character(time))) %>%
+    group_by(time) %>%
+    summarize(tot=n())
+}
+
+## bin the data  
+binnedData.df <- binData(data.df,240)
+
+##Boot  strap on original data
+bootSamp <- sample(1:N,N,rep=T)
+boot.df <- data.frame(time=data.df[bootSamp,])
+binnedBoot.df <- binData(boot.df,240)
+names(binnedBoot.df) <- c("time","bootTot")
+bind_cols(binnedData.df,binnedBoot.df) %>%
+  ggplot()+
+  geom_point(aes(time,tot),size=.5,color="Blue")+
+  geom_point(aes(time,bootTot),size=.5,color="green")+
+  scale_y_continuous(limits=c(0,200))+
+  labs(title="Original=Blue, Bootstrapped=Green")
+
+```
+
+```{r}
+theSpan <- 2
+mod.loess <- loess(tot~time,span=theSpan,data=binnedData.df)
+preds <- predict(mod.loess)
+binnedData.df$pred.loess <- preds
+
+ggplot(binnedData.df)+
+geom_point(aes(time,tot),color="blue")+
+geom_line(aes(time,pred.loess),color="red")+
+labs(title="Loess Prediction on Oringinal",
+subtitle=sprintf("Span=%s",theSpan))
+mse.oriloess <- with(binnedData.df,mean((tot-pred.loess)^2,na.rm=T))
+mse.oriloess
+```
+
+```{r}
+theSpan <- 2
+mod.loess1 <- loess(bootTot~time,span=theSpan,data=binnedBoot.df)
+preds1 <- predict(mod.loess1)
+binnedBoot.df$pred.loess1 <- preds1
+
+ggplot(binnedBoot.df)+
+geom_point(aes(time,bootTot),color="green")+
+geom_line(aes(time,pred.loess1),color="red")+
+labs(title="Loess Prediction on Boot",
+subtitle=sprintf("Span=%s",theSpan))
+mse.bootloess <- with(binnedBoot.df,mean((bootTot-pred.loess1)^2,na.rm=T))
+mse.bootloess
+```
+
+```{r}
+theSpan <- 3.8
+numBoots <- 200
+numBins <- 240
+mse <- array(numeric(0),numBoots)
+for(m in 1:numBoots){
+  bootSamp <- sample(1:N,N,rep=T)
+  boot.df <- data.frame(time=data.df[bootSamp,])
+  trainBoot.df <- binData(boot.df,numBins)
+  
+  bootSamp <- sample(1:N,N,rep=T)
+  boot.df <- data.frame(time=data.df[bootSamp,])
+  testBoot.df <- binData(boot.df,numBins)
+  
+  mod.lo.boot <- loess(tot~time,data=trainBoot.df,span=theSpan)
+  
+  binnedBoot.df$pred <-  predict(mod.lo.boot,newdata=testBoot.df)
+  mse[m] <- with(binnedBoot.df,mean((bootTot-pred)^2)) 
+}
+c(mean(mse),sd(mse))
+
+```
+```{r}
+mseSpanFunc <- function(theSpan,numBoots,numBins=240){
+  mse <- array(numeric(0),numBoots)
+  for(m in 1:numBoots){
+    bootSamp <- sample(1:N,N,rep=T)
+    boot.df <- data.frame(time=data.df[bootSamp,])
+    trainBoot.df <- binData(boot.df,numBins)
+    
+    bootSamp <- sample(1:N,N,rep=T)
+    boot.df <- data.frame(time=data.df[bootSamp,])
+    testBoot.df <- binData(boot.df,numBins)
+    
+    mod.lo.boot <- loess(tot~time,data=trainBoot.df,span=theSpan)
+    
+    binnedBoot.df$pred <-  predict(mod.lo.boot,newdata=testBoot.df)
+    mse[m] <- with(binnedBoot.df,mean((bootTot-pred)^2)) 
+  }
+  c(mean(mse),sd(mse)) 
+}
+```
+
+
+```{r}
+minSpan <- 0.1
+maxSpan <- 3.0
+numSpan <- 40
+spans <- seq(minSpan,maxSpan,length=numSpan)
+spans
+```
+
+```{r}
+mseSpan <- matrix(nrow=numSpan,ncol=2)
+numBoots <- 40
+
+##mseSpanFunc(1, 200)
+k <- 1
+for(theSpan in spans){
+  print(theSpan)
+  mseSpan[k,] <- mseSpanFunc(theSpan, numBoots,numBins)
+  print(mseSpan[k,])
+  k <- k+1
+}
+```
+
+```{r}
+plot(spans,mseSpan[,1])
+```
+
+```{r}
+mseData.df <- data.frame(span=spans,mse=mseSpan[,1],sdev=mseSpan[,2])
+```
+
+```{r}
+mseData.df %>% 
+  ggplot()+
+  geom_point(aes(span,mse),color="blue")+
+  geom_point(aes(span,mse+2*sdev),color="red")+
+  geom_point(aes(span,mse-2*sdev),color="red")+
+  geom_line(aes(span,mse),color="blue")+
+  geom_line(aes(span,mse+2*sdev),color="red")+
+  geom_line(aes(span,mse-2*sdev),color="red")+
+  labs(title="Loess Prediction: Span  vs MSE",
+       subtitle=sprintf("2019 Theft Data (bins=%s)",numBins))
+```

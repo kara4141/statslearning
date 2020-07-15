@@ -1,0 +1,310 @@
+---
+title: "Boosting ALS Data Set"
+author: "Shan Chen"
+date: "4/27/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressMessages(library(tidyverse))
+```
+
+#Former results: 
+# Setup
+Load in some synthetic data so use with Decision Trees.
+```{r}
+als.df <- read.table("http://web.stanford.edu/~hastie/CASI_files/DATA/ALS.txt",header=TRUE)
+dim(als.df)
+numCol <- ncol(als.df)
+```
+
+```{r}
+names(als.df)
+```
+Drop the first column
+```{r}
+als.df <- als.df %>% 
+  select(-testset)
+```
+
+```{r}
+with(als.df,summary(dFRS))
+```
+And the libraries....
+```{r}
+library(tidyverse)
+library(tree)
+library(glmnet)
+library(randomForest)
+library(gbm)
+```
+
+#Models
+
+Let's build all the models. It's nice that each as  cross-validated or bootstrapped estimates of  the  error rates.
+
+
+## Penalized Regression
+
+Build the data matrices.
+
+```{r}
+
+als.x <- data.matrix(als.df[,-1])
+als.y <- data.matrix(als.df[,1])
+```
+
+```{r}
+lambda.grid <- 10^seq(-3,1,length=100)
+mod.ridge.cv <- cv.glmnet(als.x,als.y,
+                          lambda=lambda.grid,
+                          alpha=0)
+plot(mod.ridge.cv)
+```
+
+Pull of the One SE lambda value.
+
+```{r}
+lambda.opt <- mod.ridge.cv$lambda.1se
+mse.ridge <- with(mod.ridge.cv,cvm[lambda == lambda.opt])
+```
+
+Same for Lasso
+
+```{r}
+mod.lasso.cv <- cv.glmnet(als.x,als.y,
+                          lambda=lambda.grid,
+                          alpha=1)
+plot(mod.lasso.cv)
+```
+```{r}
+lambda.opt <- mod.ridge.cv$lambda.1se
+mse.lasso <- with(mod.lasso.cv,cvm[lambda == lambda.opt])
+```
+
+How are we doing?
+```{r}
+c(mse.ridge,mse.lasso)
+```
+
+Interesting...ridge seems to be winning
+
+
+# Bagged Trees
+
+Now let's try Bagging and Random Forests.
+
+These take a minute to compute, using fours cores to accelerate
+
+```{r}
+numCol <- ncol(als.df)
+mod.bag <- randomForest(dFRS ~ .,
+                        data=als.df,
+                        ntree=500,
+                        mtry=numCol-1,
+                        n.cores = 4)
+```
+
+
+```{r}
+mod.bag
+(mse.bag <- mod.bag$mse[500])
+```
+
+Now a random forest. This takes some time too (but not as much time since there are  fewer predictors in play at each step).
+
+```{r}
+mod.rf <- randomForest(dFRS ~ .,
+                       data=als.df,
+                       ntree=500,
+                       mtry=(numCol-1)/3)
+```
+
+```{r}
+mod.rf
+(mse.rf <- mod.rf$mse[500])
+```
+
+# Conclusion for the old methods:
+Which one is the best?
+
+```{r}
+c(mse.ridge, mse.lasso, mse.bag,mse.rf)
+```
+We can see that:
+Looks as if the edge  goes to the Trees: Bagging and Random Forest seem to work equally well, beating out the penalized regresssion  algorithms. 
+
+#Now for our Boosting model:
+
+```{r}
+n <- nrow(als.df)
+numFolds=5
+folds <- sample(1:numFolds,n,rep=T)
+errs <- numeric(numFolds)
+for(fold in 1:numFolds){
+  train.df.cv <- als.df[folds != fold,]
+  test.df.cv <- als.df[folds == fold,]
+}
+numTrees <- 1000
+theShrinkage <- 0.1
+theDepth <- 2
+mod.gbm <- gbm(dFRS ~.,
+               data=train.df.cv,
+               distribution="gaussian", ## for regression
+               n.trees=numTrees,
+               shrinkage=theShrinkage,
+               interaction.depth = theDepth,
+               n.cores = 4)
+```
+
+```{r}
+numTreesPred <- 500
+prob.gbm <- predict(mod.gbm,
+                    newdata=test.df.cv,
+                    n.trees=100,type="response")
+pred.gbm <- predict(mod.gbm,
+                    newdata=test.df.cv,
+                    n.trees=numTreesPred)
+```
+
+
+```{r}
+mod.gbm.cv <- gbm(dFRS ~.,
+                  data=train.df.cv,
+                  distribution="gaussian", ## for regression
+                  n.trees=numTrees,
+                  shrinkage=theShrinkage,
+                  interaction.depth = theDepth,
+                  n.cores = 4)
+gbm.perf(mod.gbm.cv)
+```
+
+
+```{r}
+theShrinkage <- 0.05
+mod.gbm.cv <- gbm(dFRS ~.,
+                  data=als.df,
+                  distribution="gaussian", ## for regression
+                  n.trees=numTrees,
+                  shrinkage=theShrinkage,
+                  interaction.depth = theDepth,
+                  n.cores = 4)
+(numTreesOpt <- gbm.perf(mod.gbm.cv))
+```
+
+#CV GBM func
+
+```{r}
+cvGBM <- function(data.df,
+                  theShrinkage,
+                  theDepth,
+                  numTreesPred,
+                  numFolds=5){
+  N <- nrow(data.df)
+  folds <- sample(1:numFolds,N,rep=T)
+  errs <- numeric(numFolds)
+  fold <- 1
+  for(fold in 1:numFolds){
+    train.df.cv <- als.df[folds != fold,]
+    test.df.cv <- als.df[folds == fold,]
+    mod.gbm <- gbm(dFRS ~ . ,
+                   data=train.df.cv,
+                   distribution="gaussian",
+                   interaction.depth = theDepth,
+                   shrinkage=theShrinkage,
+                   n.minobsinnode=10,
+                   n.trees=numTrees)
+    pred.gbm <- predict(mod.gbm,
+                        newdata=test.df.cv,
+                        n.trees=numTreesPred)
+    errs[fold] <- with(test.df.cv,mean((dFRS-pred.gbm)^2))
+  }
+  mean(errs)
+}
+```
+#See how this work with opt tree number
+```{r}
+cvGBM(als.df,theShrinkage, theDepth,numTreesOpt)
+```
+Now lets focus on the other two factors:
+shrink.vals <- 10^c(-2.0, -1.0, 0.0)
+depth.vals <- c(1,2,4,6)
+cv.grid <- expand.grid(shrink=shrink.vals,
+                       depth=depth.vals)
+cv.vals <- apply(cv.grid,1,function(row) {
+  print(row)
+  cvGBM(als.df,row[1],row[2],numTreesOpt)
+})
+(bestVals <- cv.grid[id,])
+Takes too long to run, so i will just used the saved data from last run here:
+```{r}
+shrinkOpt <- 0.1
+depthOpt <- 4
+
+```
+Then lets see our optimal mse value for boosting
+```{r}
+(mse.boosting <- cvGBM(als.df,shrinkOpt, depthOpt, numTreesOpt))
+err.boosting <- mse.boosting
+c(mse.boosting, mse.ridge, mse.lasso, mse.bag,mse.rf)
+```
+Boosting win here with 0.19.
+This is so much better than all other methods.
+#Importance/Influence Plots:
+```{r}
+numPreds <- ncol(als.df)-1
+mod.gbm.cv <- gbm(dFRS ~ .,
+                  data=als.df,
+                  distribution="gaussian", ## for regression
+                  n.trees=numTreesOpt,
+                  shrinkage=shrinkOpt,
+                  interaction.depth = depthOpt,
+                  cv.folds = 5,
+                  n.minobsinnode=10,
+                  n.cores = 4)
+numTreesOpt <- gbm.perf(mod.gbm.cv,method="cv")
+```
+
+
+```{r}
+mod.gbm <- gbm(dFRS ~ .,
+               data=als.df,
+               distribution="gaussian", ## for regression
+               n.trees=numTreesOpt,
+               shrinkage=theShrinkage,
+               interaction.depth = theDepth
+)
+```
+
+
+```{r}
+summary(mod.gbm)
+```
+
+
+```{r}
+influence.sum <- summary(mod.gbm)
+```
+
+
+```{r}
+influence.df <- data.frame(var=influence.sum[,1],
+                           influence=influence.sum[,2])
+##Checking...should be 100%
+with(influence.df,sum(influence))
+influence.df <- influence.df %>%
+  mutate(var=fct_reorder(var,desc(-influence)))
+influence.df[1:10,]%>%
+  ggplot()+
+  geom_bar(aes(var,influence),
+           stat="identity",
+           fill="red")+
+  coord_flip()+
+  labs(title="Influence of Predictors: als.df",
+       subtitle="Boosting",
+       x="Predictor",
+       y="Percent Inluence")
+```
